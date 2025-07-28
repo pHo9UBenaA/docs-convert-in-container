@@ -1,0 +1,7 @@
+services:
+  converter:
+    build: .
+    volumes:
+      - ./docs:/docs
+      - ./logs:/logs
+      - ./scripts:/app
