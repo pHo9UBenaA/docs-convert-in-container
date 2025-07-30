@@ -68,7 +68,7 @@ docs/
    ```bash
    docker compose run --rm converter bash generate-batch-and-run.sh docs/
    ```
-   ※変換に失敗した場合は `logs/` ディレクトリの `batch-failed_<yyyyMMdd>.log` に書き込まれます
+   ※変換に失敗したファイルは `logs/batch-failed_<yyyyMMdd>.log` に書き込まれます
 
 ## TODO
 
