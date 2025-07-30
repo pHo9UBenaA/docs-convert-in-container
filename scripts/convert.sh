@@ -52,7 +52,13 @@ parse_file_path() {
     [[ "$input" == docs/* ]] && input="${input#docs/}"
     
     # Create absolute path
-    FULL_PATH="/docs/$input"
+    if [[ "$input" == /* ]]; then
+        # Already an absolute path
+        FULL_PATH="$input"
+    else
+        # Relative path, prepend /docs/
+        FULL_PATH="/docs/$input"
+    fi
     
     # Extract filename components
     local filename=$(basename "$FULL_PATH")

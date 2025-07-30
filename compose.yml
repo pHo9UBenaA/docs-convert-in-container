@@ -3,5 +3,6 @@ services:
     build: .
     volumes:
       - ./docs:/docs
+      - ./tests:/tests
       - ./logs:/logs
       - ./scripts:/app
