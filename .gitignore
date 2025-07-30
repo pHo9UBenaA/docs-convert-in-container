@@ -4,3 +4,6 @@ docs/
 logs/
 
 scripts/batch.txt
+
+!tests/docs/
+tests/tmp*/
