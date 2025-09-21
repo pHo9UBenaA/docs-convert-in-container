@@ -44,9 +44,11 @@ docs/
 </details>
 
 ## サポートされている拡張子と変換形式
-- `pdf`: png（1ページ -> 1PNG）
-- `pptx`: png（1スライド -> 1PNG）
-- `xlsx`: csv（1シート -> 1CSV）
+- `pdf`: png（1ページ毎）
+- `pptx`:
+  - png（1スライド毎
+  - jsonl（1スライド毎）
+- `xlsx`: csv（1シート毎）
 
 ## 使い方
 

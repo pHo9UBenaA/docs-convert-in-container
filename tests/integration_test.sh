@@ -4,6 +4,7 @@ set -e
 
 # Create temporary directory for testing
 TMP_DIR="tests/tmp_$(date +%s)"
+export TMP_DIR
 echo "Creating temporary directory for testing: $TMP_DIR"
 
 # Set up cleanup process
@@ -16,13 +17,17 @@ trap cleanup EXIT
 # Copy contents of tests/docs to temporary directory
 cp -r tests/docs "$TMP_DIR"
 
-# 1. Execute convert command inside container
-echo "1. Executing document conversion..."
+# 1. Build container image to ensure latest tooling
+echo "1. Building converter image..."
+docker compose build converter
+
+# 2. Execute convert command inside container
+echo "2. Executing document conversion..."
 
 docker compose run --rm converter bash generate-batch-and-run.sh "$TMP_DIR/"
 
-# 2. Check existence of PDF and CSV files
-echo "2. Checking generated files..."
+# 3. Check existence of PDF and CSV files
+echo "3. Checking generated files..."
 
 if [ ! -f "$TMP_DIR/sample_csv/sample_sheet1.csv" ]; then
     echo "Error: sample_csv/sample_sheet1.csv was not generated"
@@ -37,8 +42,8 @@ fi
 
 echo "✓ sample.pdf was generated"
 
-# 3. Check CSV file contents
-echo "3. Checking contents of sample_csv/sample_sheet1.csv..."
+# 4. Check CSV file contents
+echo "4. Checking contents of sample_csv/sample_sheet1.csv..."
 
 expected_content=$(cat "$TMP_DIR/expected.csv")
 actual_content=$(cat "$TMP_DIR/sample_csv/sample_sheet1.csv")
@@ -54,8 +59,8 @@ fi
 
 echo "✓ sample_csv/sample_sheet1.csv output is as expected"
 
-# 4. Check PNG file contents
-echo "4. Checking contents of sample_png/sample-1.png..."
+# 5. Check PNG file contents
+echo "5. Checking contents of sample_png/sample-1.png..."
 
 expected_content=$(sha256sum "$TMP_DIR/expected.png" | awk '{print $1}')
 actual_content=$(sha256sum "$TMP_DIR/sample_png/sample-1.png" | awk '{print $1}')
@@ -66,6 +71,21 @@ if [ "$actual_content" != "$expected_content" ]; then
 fi
 
 echo "✓ sample_png/sample-1.png output is as expected"
+
+# 6. Check JSONL outputs
+echo "6. Checking contents of sample_jsonl/..."
+
+expected_jsonl_hash=$(sha256sum "$TMP_DIR/expected.jsonl" | awk '{print $1}')
+actual_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_page-1.jsonl" | awk '{print $1}')
+
+if [ "$actual_jsonl_hash" != "$expected_jsonl_hash" ]; then
+    echo "Error: sample_page-1.jsonl content differs from expected"
+    echo "Expected hash: $expected_jsonl_hash"
+    echo "Actual hash: $actual_jsonl_hash"
+    exit 1
+fi
+
+echo "✓ sample_jsonl/sample_page-1.jsonl output is as expected"
 
 echo ""
 echo -e "\033[32m=== All tests passed successfully! ===\033[0m"

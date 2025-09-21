@@ -6,3 +6,4 @@ services:
       - ./tests:/tests
       - ./logs:/logs
       - ./scripts:/scripts
+    platform: linux/amd64

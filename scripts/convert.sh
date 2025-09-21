@@ -9,6 +9,7 @@ readonly DOCS_ROOT="/docs"
 readonly PNG_SUFFIX="_png"
 readonly CSV_SUFFIX="_csv"
 readonly PDF_EXTENSION="pdf"
+readonly JSONL_EXTENSION="jsonl"
 readonly PNG_RESOLUTION_DPI=300
 readonly CONVERSION_WAIT_SECONDS=2
 readonly MAX_DISPLAY_FILES=10
@@ -73,6 +74,7 @@ parse_file_path() {
     CSV_OUTPUT_DIR="${dir}/${BASENAME}${CSV_SUFFIX}"
     PDF_FILE="${dir}/${BASENAME}.${PDF_EXTENSION}"
     PDF_OUTDIR="${dir}"
+    JSONL_OUTPUT_DIR="${dir}/${BASENAME}_jsonl"
 }
 
 # Function to convert PDF to PNG images
@@ -123,6 +125,15 @@ convert_pptx_to_png_via_pdf() {
 
     # Convert PDF to PNG
     convert_pdf_to_png_images "$PDF_FILE"
+}
+
+# Function to convert PPTX package XML into JSONL
+convert_pptx_to_jsonl() {
+    local pptx_path="$1"
+    local jsonl_output_dir="$2"
+
+    echo "Extracting PPTX XML to JSONL..."
+    pptx-xml-to-jsonl "$pptx_path" "$jsonl_output_dir"
 }
 
 # Function to convert Excel sheets to CSV files
@@ -209,6 +220,7 @@ case "$EXTENSION" in
     "${SUPPORTED_FORMAT_PPTX}")
         # Convert PPTX to PNG
         convert_pptx_to_png_via_pdf "$FULL_PATH"
+        convert_pptx_to_jsonl "$FULL_PATH" "$JSONL_OUTPUT_DIR"
         ;;
 
     "${SUPPORTED_FORMAT_XLSX}")
@@ -230,3 +242,13 @@ esac
 
 # Display results
 display_png_conversion_results_with_limit
+
+if [ "$EXTENSION" = "${SUPPORTED_FORMAT_PPTX}" ]; then
+    if [ -d "$JSONL_OUTPUT_DIR" ]; then
+        jsonl_count=$(count_files_by_pattern "$JSONL_OUTPUT_DIR/*.jsonl")
+        echo "Success: Created $jsonl_count JSONL files in ${JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
+    else
+        echo "Error: JSONL directory was not created"
+        exit "${EXIT_CODE_ERROR}"
+    fi
+fi
