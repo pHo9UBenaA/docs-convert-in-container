@@ -5,4 +5,4 @@ services:
       - ./docs:/docs
       - ./tests:/tests
       - ./logs:/logs
-      - ./scripts:/app
+      - ./scripts:/scripts

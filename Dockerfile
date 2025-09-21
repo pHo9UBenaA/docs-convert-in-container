@@ -21,4 +21,4 @@ RUN sed -i '/ja_JP.UTF-8/s/^# //g' /etc/locale.gen && \
 ENV LANG=ja_JP.UTF-8
 ENV LC_ALL=ja_JP.UTF-8
 
-WORKDIR /app
+WORKDIR /scripts

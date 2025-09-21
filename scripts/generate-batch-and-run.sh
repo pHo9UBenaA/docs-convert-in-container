@@ -29,7 +29,7 @@ if [ ! -d "$TARGET_DIR" ]; then
 fi
 
 # Clear previous batch.txt if exists
-> /app/batch.txt
+> /scripts/batch.txt
 
 # Extensions to process
 EXTENSIONS=("pptx" "pdf" "xlsx")
@@ -42,7 +42,7 @@ for ext in "${EXTENSIONS[@]}"; do
     find "$TARGET_DIR" -type f -name "*.$ext" | while read -r file; do
         # Remove /docs/ prefix to make it relative
         relative_path="${file#/docs/}"
-        echo "bash /app/convert.sh \"$relative_path\";" >> /app/batch.txt
+        echo "bash /scripts/convert.sh \"$relative_path\";" >> /scripts/batch.txt
     done
     
     # Count files found
@@ -51,7 +51,7 @@ for ext in "${EXTENSIONS[@]}"; do
 done
 
 # Total commands generated
-total_commands=$(grep -c "bash /app/convert.sh" /app/batch.txt 2>/dev/null || echo "0")
+total_commands=$(grep -c "bash /scripts/convert.sh" /scripts/batch.txt 2>/dev/null || echo "0")
 log "Total commands generated: $total_commands"
 
 if [ "$total_commands" -eq 0 ]; then
@@ -61,11 +61,11 @@ fi
 
 # Display batch.txt content
 log "Generated batch.txt content:"
-cat /app/batch.txt | tee -a "$SCRIPT_LOG"
+cat /scripts/batch.txt | tee -a "$SCRIPT_LOG"
 
 # Execute batch.sh
 log "Starting batch.sh execution..."
-bash /app/batch.sh
+bash /scripts/batch.sh
 
 # Check exit status
 if [ $? -eq 0 ]; then

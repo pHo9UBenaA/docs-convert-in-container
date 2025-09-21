@@ -12,6 +12,7 @@
 ```
 docs/
 ├── presentation.pptx
+├── presentation.pdf        # presentation.pptxから生成
 ├── presentation_png/       # presentation.pptxから生成
 │   ├── presentation-1.png
 │   ├── presentation-2.png
@@ -24,6 +25,7 @@ docs/
 │
 ├── project1/
 │   ├── report.pptx
+│   ├── report.pdf          # report.pptxから生成
 │   ├── report_png/         # report.pptxから生成
 │   │   ├── report-1.png
 │   │   └── report-2.png

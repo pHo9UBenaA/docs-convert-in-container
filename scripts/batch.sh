@@ -55,7 +55,7 @@ while IFS= read -r line; do
         continue
     fi
     commands+=("$line")
-done < /app/batch.txt
+done < /scripts/batch.txt
 
 # Total number of commands
 total_commands=${#commands[@]}
