@@ -52,6 +52,9 @@ internal static partial class Program
         CustomGeometry? CustomGeometry = null,
         string? OleObjectType = null,
         string? ContentPartRef = null,
+        LineProperties? LineProperties = null,
+        bool? HasFill = null,
+        string? FillColor = null,
         SlideMetadata? Metadata = null,
         ErrorInfo? ErrorInfo = null);
 
@@ -66,6 +69,7 @@ internal static partial class Program
     [JsonSerializable(typeof(Transform))]
     [JsonSerializable(typeof(CustomGeometry))]
     [JsonSerializable(typeof(TableCell))]
+    [JsonSerializable(typeof(LineProperties))]
     private partial class SourceGenerationContext : JsonSerializerContext
     {
         private static readonly JsonSerializerOptions _options = new()
@@ -389,7 +393,30 @@ internal static partial class Program
         var prstGeom = spPr?.Element(a + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value ?? (customGeometry != null ? "custom" : null);
 
-        // Extract text from shape
+        // Extract line properties
+        var lineProperties = ExtractLineProperties(spPr, a);
+
+        // Extract fill information
+        var (hasFill, fillColor) = ExtractFillInfo(spPr, a);
+
+        // First, record the shape itself
+        elements.Add(new SlideElement(
+            slideNumber,
+            "shape",
+            elementIndex++,
+            ShapeId: shapeId,
+            ShapeName: shapeName,
+            Transform: transform,
+            ShapeType: shapeType,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId,
+            CustomGeometry: customGeometry,
+            LineProperties: lineProperties,
+            HasFill: hasFill,
+            FillColor: fillColor
+        ));
+
+        // Then, extract and record text as separate elements
         var paragraphs = shape.Descendants(a + "p");
         foreach (var paragraph in paragraphs)
         {
@@ -406,28 +433,25 @@ internal static partial class Program
                     ShapeId: shapeId,
                     ShapeName: shapeName,
                     Transform: transform,
-                    ShapeType: shapeType,
                     GroupLevel: groupLevel,
-                    ParentGroupId: parentGroupId,
-                    CustomGeometry: customGeometry
+                    ParentGroupId: parentGroupId
                 ));
             }
         }
 
-        // If shape has no text, still record it
-        if (!shape.Descendants(a + "t").Any())
+        // Check if the shape is purely a line (no fill, has line)
+        if (lineProperties != null && hasFill == false && shapeType == "line")
         {
             elements.Add(new SlideElement(
                 slideNumber,
-                "shape",
+                "line",
                 elementIndex++,
                 ShapeId: shapeId,
                 ShapeName: shapeName,
                 Transform: transform,
-                ShapeType: shapeType,
                 GroupLevel: groupLevel,
                 ParentGroupId: parentGroupId,
-                CustomGeometry: customGeometry
+                LineProperties: lineProperties
             ));
         }
     }
@@ -441,6 +465,9 @@ internal static partial class Program
         var spPr = pic.Element(p + "spPr");
         var transform = spPr != null ? ExtractTransform(spPr, a) : null;
 
+        // Extract line properties for picture border
+        var lineProperties = ExtractLineProperties(spPr, a);
+
         elements.Add(new SlideElement(
             slideNumber,
             "image",
@@ -449,7 +476,8 @@ internal static partial class Program
             ShapeName: picName,
             Transform: transform,
             GroupLevel: groupLevel,
-            ParentGroupId: parentGroupId
+            ParentGroupId: parentGroupId,
+            LineProperties: lineProperties
         ));
     }
 
@@ -465,6 +493,9 @@ internal static partial class Program
         var prstGeom = spPr?.Element(a + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
+        // Extract line properties for connector
+        var lineProperties = ExtractLineProperties(spPr, a);
+
         elements.Add(new SlideElement(
             slideNumber,
             "connector",
@@ -474,7 +505,8 @@ internal static partial class Program
             Transform: transform,
             ShapeType: shapeType,
             GroupLevel: groupLevel,
-            ParentGroupId: parentGroupId
+            ParentGroupId: parentGroupId,
+            LineProperties: lineProperties
         ));
     }
 
@@ -618,6 +650,90 @@ internal static partial class Program
     {
         var xfrm = element.Element(a + "xfrm");
         return XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
+    }
+
+    private static LineProperties? ExtractLineProperties(XElement? spPr, XNamespace a)
+    {
+        if (spPr == null) return null;
+
+        var ln = spPr.Element(a + "ln");
+        if (ln == null) return null;
+
+        // Extract line width
+        var width = ln.Attribute("w")?.Value;
+        long? lineWidth = null;
+        if (width != null && long.TryParse(width, out var w))
+        {
+            lineWidth = w;
+        }
+
+        // Extract line color
+        string? lineColor = null;
+        var solidFill = ln.Element(a + "solidFill");
+        if (solidFill != null)
+        {
+            var srgbClr = solidFill.Element(a + "srgbClr");
+            if (srgbClr != null)
+            {
+                lineColor = srgbClr.Attribute("val")?.Value;
+            }
+        }
+
+        // Extract dash style
+        var prstDash = ln.Element(a + "prstDash");
+        var dashStyle = prstDash?.Attribute("val")?.Value;
+
+        // Extract compound line type
+        var cmpd = ln.Attribute("cmpd")?.Value;
+
+        if (lineWidth == null && lineColor == null && dashStyle == null && cmpd == null)
+        {
+            return null;
+        }
+
+        return new LineProperties(
+            Color: lineColor,
+            Width: lineWidth,
+            DashStyle: dashStyle,
+            CompoundLineType: cmpd
+        );
+    }
+
+    private static (bool? hasFill, string? fillColor) ExtractFillInfo(XElement? spPr, XNamespace a)
+    {
+        if (spPr == null) return (null, null);
+
+        // Check for no fill
+        var noFill = spPr.Element(a + "noFill");
+        if (noFill != null)
+        {
+            return (false, null);
+        }
+
+        // Check for solid fill
+        var solidFill = spPr.Element(a + "solidFill");
+        if (solidFill != null)
+        {
+            var srgbClr = solidFill.Element(a + "srgbClr");
+            var fillColor = srgbClr?.Attribute("val")?.Value;
+            return (true, fillColor);
+        }
+
+        // Check for gradient fill
+        var gradFill = spPr.Element(a + "gradFill");
+        if (gradFill != null)
+        {
+            return (true, "gradient");
+        }
+
+        // Check for pattern fill
+        var pattFill = spPr.Element(a + "pattFill");
+        if (pattFill != null)
+        {
+            return (true, "pattern");
+        }
+
+        return (null, null);
     }
 
     private static IReadOnlyList<SlideElement> ExtractSlideElements(string xml, int slideNumber)
