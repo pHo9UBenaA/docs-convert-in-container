@@ -134,7 +134,7 @@ internal static partial class Program
 
         foreach (var entry in entries)
         {
-            var slideNumber = TryExtractSlideNumber(entry.PartName);
+            var slideNumber = DocumentUtilities.TryExtractSlideNumber(entry.PartName);
             if (slideNumber.HasValue)
             {
                 slideNumbers.Add(slideNumber.Value);
@@ -195,28 +195,6 @@ internal static partial class Program
     }
 
 
-    private static int? TryExtractSlideNumber(string partName)
-    {
-        const string slidePrefix = "/ppt/slides/slide";
-        if (!partName.StartsWith(slidePrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var suffix = partName.Substring(slidePrefix.Length);
-        var digits = new string(suffix.TakeWhile(char.IsDigit).ToArray());
-        if (digits.Length == 0)
-        {
-            return null;
-        }
-
-        if (int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
-        {
-            return value;
-        }
-
-        return null;
-    }
 
     private static void WriteSlideElementsAsJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries, int slideNumber)
     {

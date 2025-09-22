@@ -191,7 +191,7 @@ internal static partial class Program
             var sheetNumbers = new SortedSet<int>();
             foreach (var entry in entries)
             {
-                var sheetNumber = TryExtractSheetNumber(entry.PartName);
+                var sheetNumber = DocumentUtilities.TryExtractSheetNumber(entry.PartName);
                 if (sheetNumber.HasValue)
                 {
                     sheetNumbers.Add(sheetNumber.Value);
@@ -390,28 +390,6 @@ internal static partial class Program
     }
 
 
-    private static int? TryExtractSheetNumber(string partName)
-    {
-        const string sheetPrefix = "/xl/worksheets/sheet";
-        if (!partName.StartsWith(sheetPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var suffix = partName.Substring(sheetPrefix.Length);
-        var digits = new string(suffix.TakeWhile(char.IsDigit).ToArray());
-        if (digits.Length == 0)
-        {
-            return null;
-        }
-
-        if (int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
-        {
-            return value;
-        }
-
-        return null;
-    }
 
     private static void WriteSheetElementsAsJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries, int sheetNumber, string sheetName, IReadOnlyList<string> sharedStrings, IReadOnlyList<CellFormat> cellFormats)
     {
