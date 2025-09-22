@@ -72,7 +72,7 @@ fi
 
 echo "✓ sample_png/sample-1.png output is as expected"
 
-# 6. Check JSONL outputs
+# 6. Check PPTX JSONL outputs
 echo "6. Checking contents of sample_jsonl/..."
 
 expected_jsonl_hash=$(sha256sum "$TMP_DIR/expected.jsonl" | awk '{print $1}')
