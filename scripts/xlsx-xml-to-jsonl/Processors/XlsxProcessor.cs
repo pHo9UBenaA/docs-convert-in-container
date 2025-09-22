@@ -219,9 +219,8 @@ public class XlsxProcessor : IXlsxProcessor
 
         if (rows.Any())
         {
-            data.Elements.Add(new
+            data.Elements.Add(new SpreadsheetTableElement
             {
-                Type = "table",
                 SheetName = sheetName,
                 Rows = rows
             });
@@ -317,9 +316,9 @@ public class XlsxProcessor : IXlsxProcessor
             return new DateTime(1900, 1, 1).AddDays(excelDate - 2);
     }
 
-    private List<object> ProcessDrawing(XElement drawing)
+    private List<ElementBase> ProcessDrawing(XElement drawing)
     {
-        var shapes = new List<object>();
+        var shapes = new List<ElementBase>();
         // Simplified - would need to follow relationship to drawing part
         // and process the shapes there
         return shapes;
@@ -328,6 +327,6 @@ public class XlsxProcessor : IXlsxProcessor
     private class WorksheetData
     {
         public string SheetName { get; set; } = "";
-        public List<object> Elements { get; set; } = new();
+        public List<ElementBase> Elements { get; set; } = new();
     }
 }

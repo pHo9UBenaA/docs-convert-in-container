@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SharedXmlToJsonl.Interfaces;
+using SharedXmlToJsonl.Models;
 
 namespace SharedXmlToJsonl.Services;
 
@@ -18,7 +19,8 @@ public class JsonWriter : IJsonWriter
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = false,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        TypeInfoResolver = SharedJsonSerializerContext.Default
     };
 
     public JsonWriter(ILogger<JsonWriter> logger)
@@ -39,7 +41,19 @@ public class JsonWriter : IJsonWriter
 
         try
         {
-            var json = JsonSerializer.Serialize(obj, JsonSerializerOptions);
+            string json;
+            if (obj is DocumentEntry documentEntry)
+            {
+                json = JsonSerializer.Serialize(documentEntry, SharedJsonSerializerContext.Default.DocumentEntry);
+            }
+            else if (obj is ProcessingResult processingResult)
+            {
+                json = JsonSerializer.Serialize(processingResult, SharedJsonSerializerContext.Default.ProcessingResult);
+            }
+            else
+            {
+                json = JsonSerializer.Serialize(obj, JsonSerializerOptions);
+            }
             await writer.WriteLineAsync(json.AsMemory(), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)

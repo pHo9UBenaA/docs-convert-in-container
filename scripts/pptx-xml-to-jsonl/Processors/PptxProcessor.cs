@@ -145,9 +145,9 @@ public class PptxProcessor : IPptxProcessor
         }, cancellationToken);
     }
 
-    private IReadOnlyList<dynamic> ExtractSlideElements(XDocument slideDoc, int slideNumber)
+    private IReadOnlyList<ElementBase> ExtractSlideElements(XDocument slideDoc, int slideNumber)
     {
-        var elements = new List<dynamic>();
+        var elements = new List<ElementBase>();
         var cSld = slideDoc.Root?.Element(NamespaceConstants.p + "cSld");
         if (cSld == null)
             return elements;
@@ -191,7 +191,7 @@ public class PptxProcessor : IPptxProcessor
         return elements;
     }
 
-    private object? ProcessShape(XElement shapeElement)
+    private ElementBase? ProcessShape(XElement shapeElement)
     {
         var nvSpPr = shapeElement.Element(NamespaceConstants.p + "nvSpPr");
         var cNvPr = nvSpPr?.Element(NamespaceConstants.p + "cNvPr");
@@ -208,9 +208,8 @@ public class PptxProcessor : IPptxProcessor
         if (string.IsNullOrEmpty(text) && position == null && size == null)
             return null;
 
-        return new
+        return new ShapeElement
         {
-            Type = "shape",
             Id = id,
             Name = name,
             Text = text,
@@ -219,7 +218,7 @@ public class PptxProcessor : IPptxProcessor
         };
     }
 
-    private object? ProcessGraphicFrame(XElement graphicFrame)
+    private ElementBase? ProcessGraphicFrame(XElement graphicFrame)
     {
         var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
         var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
@@ -236,7 +235,7 @@ public class PptxProcessor : IPptxProcessor
         return null;
     }
 
-    private object? ProcessTable(XElement tableElement)
+    private ElementBase? ProcessTable(XElement tableElement)
     {
         var rows = new List<List<string>>();
 
@@ -255,29 +254,27 @@ public class PptxProcessor : IPptxProcessor
         if (!rows.Any())
             return null;
 
-        return new
+        return new TableElement
         {
-            Type = "table",
             Rows = rows
         };
     }
 
-    private object? ProcessConnector(XElement connectorElement)
+    private ElementBase? ProcessConnector(XElement connectorElement)
     {
         var nvCxnSpPr = connectorElement.Element(NamespaceConstants.p + "nvCxnSpPr");
         var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.p + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
-        return new
+        return new ConnectorElement
         {
-            Type = "connector",
             Id = id,
             Name = name
         };
     }
 
-    private object? ProcessPicture(XElement pictureElement)
+    private ElementBase? ProcessPicture(XElement pictureElement)
     {
         var nvPicPr = pictureElement.Element(NamespaceConstants.p + "nvPicPr");
         var cNvPr = nvPicPr?.Element(NamespaceConstants.p + "cNvPr");
@@ -289,9 +286,8 @@ public class PptxProcessor : IPptxProcessor
         var position = XmlUtilities.GetPositionFromTransform(spPr, NamespaceConstants.a);
         var size = XmlUtilities.GetSizeFromTransform(spPr, NamespaceConstants.a);
 
-        return new
+        return new PictureElement
         {
-            Type = "picture",
             Id = id,
             Name = name,
             Description = descr,
