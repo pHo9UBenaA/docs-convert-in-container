@@ -203,4 +203,94 @@ public static class ShapeProcessor
         var prstGeom = spPr.Element(a + "prstGeom");
         return prstGeom?.Attribute("prst")?.Value;
     }
+
+    /// <summary>
+    /// Process connector element (PPTX version)
+    /// </summary>
+    public static void ProcessConnectorPptx<T>(
+        XElement cxnSp,
+        List<T> elements,
+        ref int elementIndex,
+        XNamespace p,
+        XNamespace a,
+        Func<string?, string?, Transform?, string?, LineProperties?, int, string?, T> createElementFunc,
+        int groupLevel,
+        string? parentGroupId)
+    {
+        var connId = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+        var connName = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+
+        var spPr = cxnSp.Element(p + "spPr");
+        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+
+        var shapeType = ExtractConnectorType(spPr, a);
+
+        // Extract line properties for connector
+        var lineProperties = ExtractLineProperties(spPr, a);
+
+        elements.Add(createElementFunc(
+            connId,
+            connName,
+            transform,
+            shapeType,
+            lineProperties,
+            groupLevel,
+            parentGroupId
+        ));
+
+        elementIndex++;
+    }
+
+    /// <summary>
+    /// Process connector element (XLSX version)
+    /// </summary>
+    public static void ProcessConnectorXlsx<T>(
+        XElement cxnSp,
+        List<T> elements,
+        ref int elementIndex,
+        XNamespace xdr,
+        XNamespace a,
+        Func<string?, string?, Transform?, string?, int, string?, T> createElementFunc,
+        Transform? absoluteTransform,
+        CellAnchor? cellAnchor,
+        int groupLevel,
+        string? parentGroupId)
+    {
+        var nvCxnSpPr = cxnSp.Element(xdr + "nvCxnSpPr");
+        var cNvPr = nvCxnSpPr?.Element(xdr + "cNvPr");
+        var connectorId = cNvPr?.Attribute("id")?.Value;
+        var connectorName = cNvPr?.Attribute("name")?.Value;
+
+        var spPr = cxnSp.Element(xdr + "spPr");
+
+        // Extract transform
+        Transform? transform = null;
+        var xfrm = spPr?.Element(a + "xfrm");
+        if (xfrm != null)
+        {
+            transform = XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
+        }
+        else if (absoluteTransform != null)
+        {
+            transform = absoluteTransform;
+        }
+        else if (cellAnchor != null)
+        {
+            transform = new Transform(Anchor: cellAnchor);
+        }
+
+        // Extract connector type
+        var connectorType = ExtractConnectorType(spPr, a);
+
+        elements.Add(createElementFunc(
+            connectorId,
+            connectorName,
+            transform,
+            connectorType,
+            groupLevel,
+            parentGroupId
+        ));
+
+        elementIndex++;
+    }
 }

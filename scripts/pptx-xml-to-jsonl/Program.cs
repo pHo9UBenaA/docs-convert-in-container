@@ -416,29 +416,29 @@ internal static partial class Program
     private static void ProcessConnector(XElement cxnSp, List<SlideElement> elements, ref int elementIndex,
         int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
     {
-        var connId = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
-        var connName = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
-
-        var spPr = cxnSp.Element(p + "spPr");
-        var transform = spPr != null ? ShapeProcessor.ExtractTransform(spPr, a) : null;
-
-        var shapeType = ShapeProcessor.ExtractConnectorType(spPr, a);
-
-        // Extract line properties for connector
-        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, a);
-
-        elements.Add(new SlideElement(
-            slideNumber,
-            "connector",
-            elementIndex++,
-            ShapeId: connId,
-            ShapeName: connName,
-            Transform: transform,
-            ShapeType: shapeType,
-            GroupLevel: groupLevel,
-            ParentGroupId: parentGroupId,
-            LineProperties: lineProperties
-        ));
+        var currentIndex = elementIndex;
+        ShapeProcessor.ProcessConnectorPptx(
+            cxnSp,
+            elements,
+            ref elementIndex,
+            p,
+            a,
+            (connId, connName, transform, shapeType, lineProperties, grpLevel, parentGrpId) =>
+                new SlideElement(
+                    slideNumber,
+                    "connector",
+                    currentIndex,
+                    ShapeId: connId,
+                    ShapeName: connName,
+                    Transform: transform,
+                    ShapeType: shapeType,
+                    GroupLevel: grpLevel,
+                    ParentGroupId: parentGrpId,
+                    LineProperties: lineProperties
+                ),
+            groupLevel,
+            parentGroupId
+        );
     }
 
     private static void ProcessGraphicFrame(XElement graphicFrame, List<SlideElement> elements, ref int elementIndex,

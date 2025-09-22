@@ -805,7 +805,7 @@ internal static partial class Program
         // Extract group transform
         var grpSpPr = grpSp.Element(xdr + "grpSpPr");
         var xfrm = grpSpPr?.Element(a + "xfrm");
-        var groupTransform = xfrm != null ? ExtractTransformFromXfrm(xfrm, a) : absoluteTransform;
+        var groupTransform = xfrm != null ? XmlUtilities.ExtractTransformFromXfrm(xfrm, a) : absoluteTransform;
 
         if (groupTransform == null && cellAnchor != null)
         {
@@ -873,7 +873,7 @@ internal static partial class Program
         var xfrm = spPr?.Element(a + "xfrm");
         if (xfrm != null)
         {
-            transform = ExtractTransformFromXfrm(xfrm, a);
+            transform = XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
         }
         else if (absoluteTransform != null)
         {
@@ -1080,44 +1080,31 @@ internal static partial class Program
         int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
         int groupLevel, string? parentGroupId, Transform? absoluteTransform)
     {
-        var nvCxnSpPr = cxnSp.Element(xdr + "nvCxnSpPr");
-        var cNvPr = nvCxnSpPr?.Element(xdr + "cNvPr");
-        var connectorId = cNvPr?.Attribute("id")?.Value;
-        var connectorName = cNvPr?.Attribute("name")?.Value;
-
-        var spPr = cxnSp.Element(xdr + "spPr");
-
-        // Extract transform
-        Transform? transform = null;
-        var xfrm = spPr?.Element(a + "xfrm");
-        if (xfrm != null)
-        {
-            transform = ExtractTransformFromXfrm(xfrm, a);
-        }
-        else if (absoluteTransform != null)
-        {
-            transform = absoluteTransform;
-        }
-        else if (cellAnchor != null)
-        {
-            transform = new Transform(Anchor: cellAnchor);
-        }
-
-        // Extract connector type
-        var connectorType = ShapeProcessor.ExtractConnectorType(spPr, a);
-
-        elements.Add(new SheetElement(
-            sheetNumber,
-            sheetName,
-            "connector",
-            elementIndex++,
-            Transform: transform,
-            ShapeType: connectorType,
-            ShapeId: connectorId,
-            ShapeName: connectorName,
-            GroupLevel: groupLevel,
-            ParentGroupId: parentGroupId
-        ));
+        var currentIndex = elementIndex;
+        ShapeProcessor.ProcessConnectorXlsx(
+            cxnSp,
+            elements,
+            ref elementIndex,
+            xdr,
+            a,
+            (connId, connName, transform, shapeType, grpLevel, parentGrpId) =>
+                new SheetElement(
+                    sheetNumber,
+                    sheetName,
+                    "connector",
+                    currentIndex,
+                    Transform: transform,
+                    ShapeType: shapeType,
+                    ShapeId: connId,
+                    ShapeName: connName,
+                    GroupLevel: grpLevel,
+                    ParentGroupId: parentGrpId
+                ),
+            absoluteTransform,
+            cellAnchor,
+            groupLevel,
+            parentGroupId
+        );
     }
 
 
@@ -1126,10 +1113,6 @@ internal static partial class Program
         return XmlUtilities.ExtractCellReference(element, xdr);
     }
 
-    private static Transform? ExtractTransformFromXfrm(XElement xfrm, XNamespace a)
-    {
-        return XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
-    }
 
     private static void WriteJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries)
     {
