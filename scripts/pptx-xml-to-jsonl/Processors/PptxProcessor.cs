@@ -106,6 +106,8 @@ public class PptxProcessor : IPptxProcessor
         foreach (var element in slideElements)
         {
             var json = JsonSerializer.Serialize(element, ElementJsonSerializerContext.Default.SlideElement);
+            // Decode Unicode escapes for Japanese characters
+            json = System.Text.RegularExpressions.Regex.Unescape(json);
             await writer.WriteLineAsync(json);
         }
     }

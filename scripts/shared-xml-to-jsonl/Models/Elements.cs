@@ -285,8 +285,7 @@ public class CellFormat
 [JsonSerializable(typeof(Dictionary<string, int>))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-    WriteIndented = false,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    WriteIndented = false)]
 public partial class ElementJsonSerializerContext : JsonSerializerContext
 {
 }

@@ -106,6 +106,8 @@ public class XlsxProcessor : IXlsxProcessor
         foreach (var element in sheetElements)
         {
             var json = JsonSerializer.Serialize(element, ElementJsonSerializerContext.Default.SheetElement);
+            // Decode Unicode escapes for Japanese characters
+            json = System.Text.RegularExpressions.Regex.Unescape(json);
             await writer.WriteLineAsync(json);
         }
     }
