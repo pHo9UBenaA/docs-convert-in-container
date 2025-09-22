@@ -1,3 +1,7 @@
+using System.Threading;
+using System.Threading.Tasks;
+using SharedXmlToJsonl.Configuration;
+
 namespace SharedXmlToJsonl.Interfaces
 {
     /// <summary>
@@ -5,6 +9,10 @@ namespace SharedXmlToJsonl.Interfaces
     /// </summary>
     public interface IXlsxProcessor : IDocumentProcessor
     {
-        // Inherits ProcessAsync from IDocumentProcessor
+        Task<ProcessingResult> ProcessAsync(
+            string inputPath,
+            string outputDirectory,
+            ProcessingOptions options,
+            CancellationToken cancellationToken = default);
     }
 }

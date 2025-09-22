@@ -33,3 +33,15 @@ public record JsonlEntry(string PartName, string ContentType, IReadOnlyList<Rela
 /// Error information for processing failures
 /// </summary>
 public record ErrorInfo(string Xml, string Error);
+
+/// <summary>
+/// Processing result information
+/// </summary>
+public class ProcessingResult
+{
+    public bool Success { get; set; }
+    public int ProcessedItems { get; set; }
+    public string? OutputPath { get; set; }
+    public string? ErrorMessage { get; set; }
+    public TimeSpan ElapsedTime { get; set; }
+}
