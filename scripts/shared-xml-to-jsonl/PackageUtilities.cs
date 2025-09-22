@@ -130,4 +130,29 @@ public static class PackageUtilities
         var targetUri = PackUriHelper.ResolvePartUri(sourcePart.Uri, relationship.TargetUri);
         return package.GetPart(targetUri);
     }
+
+    /// <summary>
+    /// Gets the workbook part from an Excel package
+    /// </summary>
+    public static PackagePart GetWorkbookPart(Package package)
+    {
+        var workbookPart = package.GetParts()
+            .FirstOrDefault(p => p.Uri.ToString().EndsWith("workbook.xml", StringComparison.OrdinalIgnoreCase));
+
+        if (workbookPart == null)
+            throw new InvalidOperationException("Workbook part not found in package");
+
+        return workbookPart;
+    }
+
+    /// <summary>
+    /// Gets the shared strings part from an Excel package
+    /// </summary>
+    public static PackagePart? GetSharedStringsPart(Package package)
+    {
+        var sharedStringsPart = package.GetParts()
+            .FirstOrDefault(p => p.Uri.ToString().EndsWith("sharedStrings.xml", StringComparison.OrdinalIgnoreCase));
+
+        return sharedStringsPart;  // May be null if no shared strings exist
+    }
 }

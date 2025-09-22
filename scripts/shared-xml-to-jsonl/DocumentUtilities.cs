@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 
 namespace SharedXmlToJsonl
@@ -62,6 +63,19 @@ namespace SharedXmlToJsonl
         {
             const string sheetPrefix = "/xl/worksheets/sheet";
             return TryExtractDocumentNumber(partName, sheetPrefix);
+        }
+
+        /// <summary>
+        /// Gets the document name from a file path.
+        /// </summary>
+        /// <param name="path">The file path</param>
+        /// <returns>The document name without extension</returns>
+        public static string GetDocumentNameFromPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return "unknown";
+
+            return Path.GetFileNameWithoutExtension(path) ?? "unknown";
         }
     }
 }

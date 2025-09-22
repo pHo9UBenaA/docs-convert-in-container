@@ -199,8 +199,8 @@ public class PptxProcessor : IPptxProcessor
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
         var spPr = shapeElement.Element(NamespaceConstants.p + "spPr");
-        var position = XmlUtilities.GetPositionFromTransform(spPr);
-        var size = XmlUtilities.GetSizeFromTransform(spPr);
+        var position = XmlUtilities.GetPositionFromTransform(spPr, NamespaceConstants.a);
+        var size = XmlUtilities.GetSizeFromTransform(spPr, NamespaceConstants.a);
 
         var txBody = shapeElement.Element(NamespaceConstants.p + "txBody");
         var text = ExtractTextContent(txBody);
@@ -286,8 +286,8 @@ public class PptxProcessor : IPptxProcessor
         var descr = cNvPr?.Attribute("descr")?.Value;
 
         var spPr = pictureElement.Element(NamespaceConstants.p + "spPr");
-        var position = XmlUtilities.GetPositionFromTransform(spPr);
-        var size = XmlUtilities.GetSizeFromTransform(spPr);
+        var position = XmlUtilities.GetPositionFromTransform(spPr, NamespaceConstants.a);
+        var size = XmlUtilities.GetSizeFromTransform(spPr, NamespaceConstants.a);
 
         return new
         {

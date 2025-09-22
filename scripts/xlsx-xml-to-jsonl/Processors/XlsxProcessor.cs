@@ -74,7 +74,7 @@ public class XlsxProcessor : IXlsxProcessor
             return new ProcessingResult
             {
                 Success = true,
-                ProcessedItems = entries.Count,
+                ItemsProcessed = entries.Count,
                 OutputPath = outputPath
             };
         }
