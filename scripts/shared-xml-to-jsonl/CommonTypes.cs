@@ -54,6 +54,16 @@ public record TableCell(
 );
 
 /// <summary>
+/// Line properties for shape borders
+/// </summary>
+public record LineProperties(
+    string? Color = null,
+    long? Width = null,
+    string? DashStyle = null,
+    string? CompoundLineType = null
+);
+
+/// <summary>
 /// JSON serialization context for common types
 /// </summary>
 [JsonSerializable(typeof(Position))]
@@ -62,6 +72,7 @@ public record TableCell(
 [JsonSerializable(typeof(CellAnchor))]
 [JsonSerializable(typeof(CustomGeometry))]
 [JsonSerializable(typeof(TableCell))]
+[JsonSerializable(typeof(LineProperties))]
 public partial class CommonJsonContext : JsonSerializerContext
 {
 }
