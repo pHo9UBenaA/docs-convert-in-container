@@ -17,9 +17,10 @@ namespace PptxXmlToJsonl;
 
 internal static partial class Program
 {
-    private const int ExitSuccess = 0;
-    private const int ExitUsageError = 2;
-    private const int ExitProcessingError = 3;
+    // Exit codes from CommonBase
+    private const int ExitSuccess = CommonBase.ExitSuccess;
+    private const int ExitUsageError = CommonBase.ExitUsageError;
+    private const int ExitProcessingError = CommonBase.ExitProcessingError;
 
     // Content types are now in NamespaceConstants
     private const string RelationshipContentType = NamespaceConstants.RelationshipContentType;
@@ -28,14 +29,11 @@ internal static partial class Program
     // Use custom context with relaxed encoding
     private static readonly SourceGenerationContext JsonContext = SourceGenerationContext.Custom;
 
-    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    // UTF8 encoding from CommonBase
+    private static readonly Encoding Utf8NoBom = CommonBase.Utf8NoBom;
 
-    private record RelationshipInfo(string Id, string Type, string Target, string TargetMode);
-
-    private record JsonlEntry(string PartName, string ContentType, IReadOnlyList<RelationshipInfo> Relationships, int SizeBytes, string Xml);
-
+    // Type aliases for common types from SharedXmlToJsonl
     private record SlideMetadata(int SlideNumber);
-    private record ErrorInfo(string Xml, string Error);
 
     // Position, Size, Transform are now from SharedXmlToJsonl namespace
 
