@@ -75,17 +75,32 @@ echo "✓ sample_png/sample-1.png output is as expected"
 # 6. Check PPTX JSONL outputs
 echo "6. Checking contents of sample_jsonl/..."
 
-expected_jsonl_hash=$(sha256sum "$TMP_DIR/expected.jsonl" | awk '{print $1}')
-actual_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_page-1.jsonl" | awk '{print $1}')
+expected_pptx_jsonl_hash=$(sha256sum "$TMP_DIR/expected_pptx-1.jsonl" | awk '{print $1}')
+actual_pptx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_page-1.jsonl" | awk '{print $1}')
 
-if [ "$actual_jsonl_hash" != "$expected_jsonl_hash" ]; then
+if [ "$actual_pptx_jsonl_hash" != "$expected_pptx_jsonl_hash" ]; then
     echo "Error: sample_page-1.jsonl content differs from expected"
-    echo "Expected hash: $expected_jsonl_hash"
-    echo "Actual hash: $actual_jsonl_hash"
+    echo "Expected hash: $expected_pptx_jsonl_hash"
+    echo "Actual hash: $actual_pptx_jsonl_hash"
     exit 1
 fi
 
 echo "✓ sample_jsonl/sample_page-1.jsonl output is as expected"
+
+# 7. Check XLSX JSONL outputs
+echo "7. Checking XLSX JSONL outputs..."
+
+expected_xlsx_jsonl_hash=$(sha256sum "$TMP_DIR/expected_xlsx-1.jsonl" | awk '{print $1}')
+actual_xlsx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_sheet1.jsonl" | awk '{print $1}')
+
+if [ "$actual_xlsx_jsonl_hash" != "$expected_xlsx_jsonl_hash" ]; then
+    echo "Error: sample_sheet1.jsonl content differs from expected"
+    echo "Expected hash: $expected_xlsx_jsonl_hash"
+    echo "Actual hash: $actual_xlsx_jsonl_hash"
+    exit 1
+fi
+
+echo "✓ sample_jsonl/sample_sheet1.jsonl output is as expected"
 
 echo ""
 echo -e "\033[32m=== All tests passed successfully! ===\033[0m"

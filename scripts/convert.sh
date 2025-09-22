@@ -75,6 +75,7 @@ parse_file_path() {
     PDF_FILE="${dir}/${BASENAME}.${PDF_EXTENSION}"
     PDF_OUTDIR="${dir}"
     JSONL_OUTPUT_DIR="${dir}/${BASENAME}_jsonl"
+    XLSX_JSONL_OUTPUT_DIR="${dir}/${BASENAME}_jsonl"
 }
 
 # Function to convert PDF to PNG images
@@ -136,6 +137,15 @@ convert_pptx_to_jsonl() {
     pptx-xml-to-jsonl "$pptx_path" "$jsonl_output_dir"
 }
 
+# Function to convert XLSX package XML into JSONL
+convert_xlsx_to_jsonl() {
+    local xlsx_path="$1"
+    local jsonl_output_dir="$2"
+
+    echo "Extracting XLSX XML to JSONL..."
+    xlsx-xml-to-jsonl "$xlsx_path" "$jsonl_output_dir"
+}
+
 # Function to convert Excel sheets to CSV files
 convert_excel_sheets_to_csv_files() {
     local excel_path="$1"
@@ -168,7 +178,6 @@ convert_excel_to_csv_sheet_by_sheet() {
 
     # Count and display results
     display_csv_conversion_results
-    exit "${EXIT_CODE_SUCCESS}"
 }
 
 # Function to display PNG conversion results with file limit
@@ -221,16 +230,36 @@ case "$EXTENSION" in
         # Convert PPTX to PNG
         convert_pptx_to_png_via_pdf "$FULL_PATH"
         convert_pptx_to_jsonl "$FULL_PATH" "$JSONL_OUTPUT_DIR"
+        # Display results
+        display_png_conversion_results_with_limit
+        if [ -d "$JSONL_OUTPUT_DIR" ]; then
+            jsonl_count=$(count_files_by_pattern "$JSONL_OUTPUT_DIR/*.jsonl")
+            echo "Success: Created $jsonl_count JSONL files in ${JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
+        else
+            echo "Error: JSONL directory was not created"
+            exit "${EXIT_CODE_ERROR}"
+        fi
         ;;
 
     "${SUPPORTED_FORMAT_XLSX}")
-        # Convert Excel to CSV
+        # Convert Excel to CSV and JSONL
         convert_excel_to_csv_sheet_by_sheet "$FULL_PATH"
+        convert_xlsx_to_jsonl "$FULL_PATH" "$XLSX_JSONL_OUTPUT_DIR"
+        # JSONL results already displayed by CSV function
+        if [ -d "$XLSX_JSONL_OUTPUT_DIR" ]; then
+            jsonl_count=$(count_files_by_pattern "$XLSX_JSONL_OUTPUT_DIR/*.jsonl")
+            echo "Success: Created $jsonl_count JSONL files in ${XLSX_JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
+        else
+            echo "Error: JSONL directory was not created"
+            exit "${EXIT_CODE_ERROR}"
+        fi
         ;;
 
     "${SUPPORTED_FORMAT_PDF}")
         # Convert PDF directly to PNG
         convert_pdf_to_png_images "$FULL_PATH"
+        # Display results
+        display_png_conversion_results_with_limit
         ;;
 
     *)
@@ -239,16 +268,3 @@ case "$EXTENSION" in
         exit "${EXIT_CODE_ERROR}"
         ;;
 esac
-
-# Display results
-display_png_conversion_results_with_limit
-
-if [ "$EXTENSION" = "${SUPPORTED_FORMAT_PPTX}" ]; then
-    if [ -d "$JSONL_OUTPUT_DIR" ]; then
-        jsonl_count=$(count_files_by_pattern "$JSONL_OUTPUT_DIR/*.jsonl")
-        echo "Success: Created $jsonl_count JSONL files in ${JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
-    else
-        echo "Error: JSONL directory was not created"
-        exit "${EXIT_CODE_ERROR}"
-    fi
-fi
