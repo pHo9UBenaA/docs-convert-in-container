@@ -14,6 +14,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
+using SharedXmlToJsonl;
 
 namespace XlsxXmlToJsonl;
 
@@ -37,6 +38,7 @@ internal static partial class Program
 
     private record SheetMetadata(int SheetNumber, string SheetName);
     private record ErrorInfo(string Xml, string Error);
+    // Position, Size, Transform, CellAnchor are now from SharedXmlToJsonl namespace
 
     private record SheetElement(
         int SheetNumber,
@@ -49,6 +51,14 @@ internal static partial class Program
         string? DataType = null,
         int? Row = null,
         int? Column = null,
+        Transform? Transform = null,
+        string? ShapeType = null,
+        string? ShapeId = null,
+        string? ShapeName = null,
+        int? GroupLevel = null,
+        string? ParentGroupId = null,
+        CustomGeometry? CustomGeometry = null,
+        string? OleObjectType = null,
         SheetMetadata? Metadata = null,
         ErrorInfo? ErrorInfo = null);
 
@@ -58,6 +68,12 @@ internal static partial class Program
     [JsonSerializable(typeof(IReadOnlyList<RelationshipInfo>))]
     [JsonSerializable(typeof(SheetMetadata))]
     [JsonSerializable(typeof(ErrorInfo))]
+    [JsonSerializable(typeof(Position))]
+    [JsonSerializable(typeof(Size))]
+    [JsonSerializable(typeof(CellAnchor))]
+    [JsonSerializable(typeof(Transform))]
+    [JsonSerializable(typeof(CustomGeometry))]
+    [JsonSerializable(typeof(TableCell))]
     private partial class SourceGenerationContext : JsonSerializerContext
     {
         private static readonly JsonSerializerOptions _options = new()
@@ -237,10 +253,12 @@ internal static partial class Program
         // Check if the entry is directly related to the specified sheet
         var sheetPartName = $"/xl/worksheets/sheet{sheetNumber}.xml";
         var sheetRelsPartName = $"/xl/worksheets/_rels/sheet{sheetNumber}.xml.rels";
+        var drawingPartName = $"/xl/drawings/drawing{sheetNumber}.xml";
 
-        // Only include sheet-specific entries
+        // Include sheet-specific entries and associated drawings
         return partName.Equals(sheetPartName, StringComparison.OrdinalIgnoreCase) ||
-               partName.Equals(sheetRelsPartName, StringComparison.OrdinalIgnoreCase);
+               partName.Equals(sheetRelsPartName, StringComparison.OrdinalIgnoreCase) ||
+               partName.Equals(drawingPartName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static JsonlEntry BuildEntry(ZipArchiveEntry entry, Package package)
@@ -351,6 +369,8 @@ internal static partial class Program
         using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
         using var writer = new StreamWriter(stream, Utf8NoBom);
 
+        var allElements = new List<SheetElement>();
+
         foreach (var entry in entries)
         {
             // Check if this is a sheet XML file
@@ -358,14 +378,25 @@ internal static partial class Program
                 entry.PartName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
                 !entry.PartName.Contains(".rels", StringComparison.OrdinalIgnoreCase))
             {
-                // Parse sheet XML and write elements separately
-                var elements = ExtractSheetElements(entry.Xml, sheetNumber, sheetName, sharedStrings);
-                foreach (var element in elements)
-                {
-                    writer.WriteLine(JsonSerializer.Serialize(element, JsonContext.SheetElement));
-                }
+                // Parse sheet XML and collect elements
+                var sheetElements = ExtractSheetElements(entry.Xml, sheetNumber, sheetName, sharedStrings);
+                allElements.AddRange(sheetElements);
+            }
+            // Check if this is a drawing XML file
+            else if (entry.PartName.StartsWith("/xl/drawings/drawing", StringComparison.OrdinalIgnoreCase) &&
+                     entry.PartName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse drawing XML and collect elements
+                var drawingElements = ExtractDrawingElements(entry.Xml, sheetNumber, sheetName, allElements.Count);
+                allElements.AddRange(drawingElements);
             }
             // Skip relationship files - they don't contain useful content for understanding the sheet
+        }
+
+        // Write all elements in order
+        foreach (var element in allElements)
+        {
+            writer.WriteLine(JsonSerializer.Serialize(element, JsonContext.SheetElement));
         }
     }
 
@@ -485,6 +516,482 @@ internal static partial class Program
             index = index * 26 + (c - 'A' + 1);
         }
         return index;
+    }
+
+    private static IReadOnlyList<SheetElement> ExtractDrawingElements(string xml, int sheetNumber, string sheetName, int startElementIndex)
+    {
+        var elements = new List<SheetElement>();
+        var elementIndex = startElementIndex;
+
+        try
+        {
+            var doc = XDocument.Parse(xml);
+            XNamespace xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+            XNamespace a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+
+            // Process all anchors (two-cell, one-cell, and absolute)
+            ProcessAnchors(doc, elements, ref elementIndex, sheetNumber, sheetName, xdr, a);
+
+            return elements;
+        }
+        catch (Exception ex)
+        {
+            // If XML parsing fails, return element with error
+            elements.Add(new SheetElement(
+                sheetNumber,
+                sheetName,
+                "drawing_error",
+                startElementIndex,
+                ErrorInfo: new ErrorInfo(xml, ex.Message)
+            ));
+        }
+
+        return elements;
+    }
+
+    private static void ProcessAnchors(XDocument doc, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a)
+    {
+        // Extract two-cell anchors (most common for shapes/charts in Excel)
+        var twoCellAnchors = doc.Descendants(xdr + "twoCellAnchor");
+        foreach (var anchor in twoCellAnchors)
+            {
+                // Extract anchor positions
+                var fromCell = ExtractCellReference(anchor.Element(xdr + "from"), xdr);
+                var toCell = ExtractCellReference(anchor.Element(xdr + "to"), xdr);
+
+                CellAnchor? cellAnchor = null;
+                if (fromCell != null && toCell != null)
+                {
+                    cellAnchor = new CellAnchor(
+                        fromCell.Value.Cell,
+                        fromCell.Value.Col,
+                        fromCell.Value.Row,
+                        toCell.Value.Cell,
+                        toCell.Value.Col,
+                        toCell.Value.Row
+                    );
+                }
+
+                // Process elements within the anchor
+                ProcessAnchorElements(anchor, elements, ref elementIndex, sheetNumber, sheetName,
+                    xdr, a, cellAnchor, 0, null);
+            }
+
+            // Extract absolute position anchors
+            var absoluteAnchors = doc.Descendants(xdr + "absoluteAnchor");
+            foreach (var anchor in absoluteAnchors)
+            {
+                var pos = anchor.Element(xdr + "pos");
+                var ext = anchor.Element(xdr + "ext");
+
+                Position? position = null;
+                Size? size = null;
+
+                if (pos != null)
+                {
+                    var x = pos.Attribute("x")?.Value;
+                    var y = pos.Attribute("y")?.Value;
+                    if (long.TryParse(x, out var xVal) && long.TryParse(y, out var yVal))
+                    {
+                        position = new Position(xVal, yVal);
+                    }
+                }
+
+                if (ext != null)
+                {
+                    var cx = ext.Attribute("cx")?.Value;
+                    var cy = ext.Attribute("cy")?.Value;
+                    if (long.TryParse(cx, out var width) && long.TryParse(cy, out var height))
+                    {
+                        size = new Size(width, height);
+                    }
+                }
+
+                var transform = (position != null || size != null) ? new Transform(position, size) : null;
+
+                // Process elements within the anchor
+                ProcessAnchorElements(anchor, elements, ref elementIndex, sheetNumber, sheetName,
+                    xdr, a, null, 0, null, transform);
+            }
+        }
+
+    private static void ProcessAnchorElements(XElement anchor, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform = null)
+    {
+        // Check for group shapes
+        var grpSp = anchor.Element(xdr + "grpSp");
+        if (grpSp != null)
+        {
+            ProcessGroupShape(grpSp, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                cellAnchor, groupLevel, parentGroupId, absoluteTransform);
+            return;
+        }
+
+        // Check for shape
+        var sp = anchor.Element(xdr + "sp");
+        if (sp != null)
+        {
+            ProcessShape(sp, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                cellAnchor, groupLevel, parentGroupId, absoluteTransform);
+        }
+
+        // Check for picture
+        var pic = anchor.Element(xdr + "pic");
+        if (pic != null)
+        {
+            ProcessPicture(pic, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                cellAnchor, groupLevel, parentGroupId, absoluteTransform);
+        }
+
+        // Check for graphic frame (charts, tables, SmartArt)
+        var graphicFrame = anchor.Element(xdr + "graphicFrame");
+        if (graphicFrame != null)
+        {
+            ProcessGraphicFrame(graphicFrame, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                cellAnchor, groupLevel, parentGroupId, absoluteTransform);
+        }
+    }
+
+    private static void ProcessGroupShape(XElement grpSp, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform)
+    {
+        var nvGrpSpPr = grpSp.Element(xdr + "nvGrpSpPr");
+        var cNvPr = nvGrpSpPr?.Element(xdr + "cNvPr");
+        var groupId = cNvPr?.Attribute("id")?.Value;
+        var groupName = cNvPr?.Attribute("name")?.Value;
+
+        // Extract group transform
+        var grpSpPr = grpSp.Element(xdr + "grpSpPr");
+        var xfrm = grpSpPr?.Element(a + "xfrm");
+        var groupTransform = xfrm != null ? ExtractTransformFromXfrm(xfrm, a) : absoluteTransform;
+
+        if (groupTransform == null && cellAnchor != null)
+        {
+            groupTransform = new Transform(Anchor: cellAnchor);
+        }
+
+        // Add group element
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "group",
+            elementIndex++,
+            Transform: groupTransform,
+            ShapeId: groupId,
+            ShapeName: groupName,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+
+        // Process child elements
+        foreach (var child in grpSp.Elements())
+        {
+            var childName = child.Name.LocalName;
+            if (childName == "sp")
+            {
+                ProcessShape(child, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                    null, groupLevel + 1, groupId, null);
+            }
+            else if (childName == "grpSp")
+            {
+                ProcessGroupShape(child, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                    null, groupLevel + 1, groupId, null);
+            }
+            else if (childName == "pic")
+            {
+                ProcessPicture(child, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                    null, groupLevel + 1, groupId, null);
+            }
+            else if (childName == "graphicFrame")
+            {
+                ProcessGraphicFrame(child, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                    null, groupLevel + 1, groupId, null);
+            }
+            else if (childName == "cxnSp")
+            {
+                ProcessConnector(child, elements, ref elementIndex, sheetNumber, sheetName, xdr, a,
+                    null, groupLevel + 1, groupId, null);
+            }
+        }
+    }
+
+    private static void ProcessShape(XElement sp, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform)
+    {
+        var nvSpPr = sp.Element(xdr + "nvSpPr");
+        var cNvPr = nvSpPr?.Element(xdr + "cNvPr");
+        var shapeId = cNvPr?.Attribute("id")?.Value;
+        var shapeName = cNvPr?.Attribute("name")?.Value;
+
+        var spPr = sp.Element(xdr + "spPr");
+
+        // Extract transform
+        Transform? transform = null;
+        var xfrm = spPr?.Element(a + "xfrm");
+        if (xfrm != null)
+        {
+            transform = ExtractTransformFromXfrm(xfrm, a);
+        }
+        else if (absoluteTransform != null)
+        {
+            transform = absoluteTransform;
+        }
+        else if (cellAnchor != null)
+        {
+            transform = new Transform(Anchor: cellAnchor);
+        }
+
+        // Check for custom geometry
+        var custGeom = spPr?.Element(a + "custGeom");
+        var customGeometry = XmlUtilities.ExtractCustomGeometry(custGeom, a);
+
+        // Extract shape type
+        var prstGeom = spPr?.Element(a + "prstGeom");
+        var shapeType = prstGeom?.Attribute("prst")?.Value ?? (customGeometry != null ? "custom" : null);
+
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "shape",
+            elementIndex++,
+            Transform: transform,
+            ShapeType: shapeType,
+            ShapeId: shapeId,
+            ShapeName: shapeName,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId,
+            CustomGeometry: customGeometry
+        ));
+    }
+
+    private static void ProcessPicture(XElement pic, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform)
+    {
+        var nvPicPr = pic.Element(xdr + "nvPicPr");
+        var cNvPr = nvPicPr?.Element(xdr + "cNvPr");
+        var picId = cNvPr?.Attribute("id")?.Value;
+        var picName = cNvPr?.Attribute("name")?.Value;
+
+        Transform? transform = absoluteTransform;
+        if (transform == null && cellAnchor != null)
+        {
+            transform = new Transform(Anchor: cellAnchor);
+        }
+
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "image",
+            elementIndex++,
+            Transform: transform,
+            ShapeId: picId,
+            ShapeName: picName,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static void ProcessGraphicFrame(XElement graphicFrame, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform)
+    {
+        var nvGraphicFramePr = graphicFrame.Element(xdr + "nvGraphicFramePr");
+        var cNvPr = nvGraphicFramePr?.Element(xdr + "cNvPr");
+        var frameId = cNvPr?.Attribute("id")?.Value;
+        var frameName = cNvPr?.Attribute("name")?.Value;
+
+        Transform? transform = absoluteTransform;
+        if (transform == null && cellAnchor != null)
+        {
+            transform = new Transform(Anchor: cellAnchor);
+        }
+
+        // Check graphic data content
+        var graphic = graphicFrame.Element(a + "graphic");
+        var graphicData = graphic?.Element(a + "graphicData");
+
+        if (graphicData != null)
+        {
+            // Check for table
+            var table = graphicData.Element(a + "tbl");
+            if (table != null)
+            {
+                ProcessTable(table, elements, ref elementIndex, sheetNumber, sheetName, a,
+                    frameId, frameName, transform, groupLevel, parentGroupId);
+                return;
+            }
+
+            // Check for chart
+            XNamespace c = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+            var chart = graphicData.Element(c + "chart");
+            if (chart != null)
+            {
+                elements.Add(new SheetElement(
+                    sheetNumber,
+                    sheetName,
+                    "chart",
+                    elementIndex++,
+                    Transform: transform,
+                    ShapeId: frameId,
+                    ShapeName: frameName,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId
+                ));
+                return;
+            }
+
+            // Check for SmartArt
+            XNamespace dgm = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
+            var relIds = graphicData.Element(dgm + "relIds");
+            if (relIds != null)
+            {
+                elements.Add(new SheetElement(
+                    sheetNumber,
+                    sheetName,
+                    "smartart",
+                    elementIndex++,
+                    ShapeId: frameId,
+                    ShapeName: frameName,
+                    Transform: transform,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId
+                ));
+                return;
+            }
+
+            // Check for OLE objects
+            XNamespace o = "urn:schemas-microsoft-com:office:office";
+            var oleObj = graphicData.Descendants(o + "oleObj").FirstOrDefault();
+            if (oleObj != null)
+            {
+                var progId = oleObj.Attribute("progId")?.Value;
+                elements.Add(new SheetElement(
+                    sheetNumber,
+                    sheetName,
+                    "ole_object",
+                    elementIndex++,
+                    ShapeId: frameId,
+                    ShapeName: frameName,
+                    Transform: transform,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId,
+                    OleObjectType: progId
+                ));
+                return;
+            }
+        }
+
+        // Unknown graphic frame type
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "graphic_frame",
+            elementIndex++,
+            Transform: transform,
+            ShapeId: frameId,
+            ShapeName: frameName,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static void ProcessTable(XElement table, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace a, string? tableId, string? tableName,
+        Transform? transform, int groupLevel, string? parentGroupId)
+    {
+        // Add table element
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "table",
+            elementIndex++,
+            ShapeId: tableId,
+            ShapeName: tableName,
+            Transform: transform,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+
+        // Extract table cells using utility
+        var cells = XmlUtilities.ExtractTableCells(table, a);
+        foreach (var cell in cells)
+        {
+            if (!string.IsNullOrWhiteSpace(cell.Text))
+            {
+                elements.Add(new SheetElement(
+                    sheetNumber,
+                    sheetName,
+                    "table_cell",
+                    elementIndex++,
+                    Value: cell.Text,
+                    ShapeId: $"{tableId}_R{cell.Row}C{cell.Col}",
+                    ShapeName: $"Cell[{cell.Row},{cell.Col}]",
+                    GroupLevel: groupLevel + 1,
+                    ParentGroupId: tableId
+                ));
+            }
+        }
+    }
+
+    private static void ProcessConnector(XElement cxnSp, List<SheetElement> elements, ref int elementIndex,
+        int sheetNumber, string sheetName, XNamespace xdr, XNamespace a, CellAnchor? cellAnchor,
+        int groupLevel, string? parentGroupId, Transform? absoluteTransform)
+    {
+        var nvCxnSpPr = cxnSp.Element(xdr + "nvCxnSpPr");
+        var cNvPr = nvCxnSpPr?.Element(xdr + "cNvPr");
+        var connectorId = cNvPr?.Attribute("id")?.Value;
+        var connectorName = cNvPr?.Attribute("name")?.Value;
+
+        var spPr = cxnSp.Element(xdr + "spPr");
+
+        // Extract transform
+        Transform? transform = null;
+        var xfrm = spPr?.Element(a + "xfrm");
+        if (xfrm != null)
+        {
+            transform = ExtractTransformFromXfrm(xfrm, a);
+        }
+        else if (absoluteTransform != null)
+        {
+            transform = absoluteTransform;
+        }
+        else if (cellAnchor != null)
+        {
+            transform = new Transform(Anchor: cellAnchor);
+        }
+
+        // Extract connector type
+        var prstGeom = spPr?.Element(a + "prstGeom");
+        var connectorType = prstGeom?.Attribute("prst")?.Value;
+
+        elements.Add(new SheetElement(
+            sheetNumber,
+            sheetName,
+            "connector",
+            elementIndex++,
+            Transform: transform,
+            ShapeType: connectorType,
+            ShapeId: connectorId,
+            ShapeName: connectorName,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+
+    private static (string Cell, int Col, int Row)? ExtractCellReference(XElement? element, XNamespace xdr)
+    {
+        return XmlUtilities.ExtractCellReference(element, xdr);
+    }
+
+    private static Transform? ExtractTransformFromXfrm(XElement xfrm, XNamespace a)
+    {
+        return XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
     }
 
     private static void WriteJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries)

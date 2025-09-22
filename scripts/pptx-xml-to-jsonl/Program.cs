@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
+using SharedXmlToJsonl;
 
 namespace PptxXmlToJsonl;
 
@@ -35,6 +36,8 @@ internal static partial class Program
     private record SlideMetadata(int SlideNumber);
     private record ErrorInfo(string Xml, string Error);
 
+    // Position, Size, Transform are now from SharedXmlToJsonl namespace
+
     private record SlideElement(
         int SlideNumber,
         string ElementType,
@@ -42,6 +45,13 @@ internal static partial class Program
         string? Text = null,
         string? ShapeId = null,
         string? ShapeName = null,
+        Transform? Transform = null,
+        string? ShapeType = null,
+        int? GroupLevel = null,
+        string? ParentGroupId = null,
+        CustomGeometry? CustomGeometry = null,
+        string? OleObjectType = null,
+        string? ContentPartRef = null,
         SlideMetadata? Metadata = null,
         ErrorInfo? ErrorInfo = null);
 
@@ -51,6 +61,11 @@ internal static partial class Program
     [JsonSerializable(typeof(IReadOnlyList<RelationshipInfo>))]
     [JsonSerializable(typeof(SlideMetadata))]
     [JsonSerializable(typeof(ErrorInfo))]
+    [JsonSerializable(typeof(Position))]
+    [JsonSerializable(typeof(Size))]
+    [JsonSerializable(typeof(Transform))]
+    [JsonSerializable(typeof(CustomGeometry))]
+    [JsonSerializable(typeof(TableCell))]
     private partial class SourceGenerationContext : JsonSerializerContext
     {
         private static readonly JsonSerializerOptions _options = new()
@@ -295,6 +310,316 @@ internal static partial class Program
         }
     }
 
+    private static void ProcessGroupShape(XElement groupElement, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        // Check if this is actually a group shape (not the root spTree)
+        bool isRootSpTree = groupElement.Name == (p + "spTree");
+
+        if (!isRootSpTree)
+        {
+            // Extract group information
+            var grpId = groupElement.Element(p + "nvGrpSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+            var grpName = groupElement.Element(p + "nvGrpSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+            var grpSpPr = groupElement.Element(p + "grpSpPr");
+            var transform = grpSpPr != null ? ExtractTransform(grpSpPr, a) : null;
+
+            // Add the group itself as an element
+            elements.Add(new SlideElement(
+                slideNumber,
+                "group_shape",
+                elementIndex++,
+                ShapeId: grpId,
+                ShapeName: grpName,
+                Transform: transform,
+                GroupLevel: groupLevel,
+                ParentGroupId: parentGroupId
+            ));
+
+            // Update parent ID for children
+            parentGroupId = grpId;
+        }
+
+        // Process child elements within the group
+        foreach (var child in groupElement.Elements())
+        {
+            var childName = child.Name.LocalName;
+
+            if (childName == "sp") // Regular shape
+            {
+                ProcessShape(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+            else if (childName == "grpSp") // Nested group
+            {
+                ProcessGroupShape(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+            else if (childName == "pic") // Picture
+            {
+                ProcessPicture(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+            else if (childName == "cxnSp") // Connector
+            {
+                ProcessConnector(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+            else if (childName == "graphicFrame") // Graphic frame (table, chart, etc.)
+            {
+                ProcessGraphicFrame(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+            else if (childName == "contentPart") // Content part
+            {
+                ProcessContentPart(child, elements, ref elementIndex, slideNumber, p, a, groupLevel + 1, parentGroupId);
+            }
+        }
+    }
+
+    private static void ProcessShape(XElement shape, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        var shapeId = shape.Element(p + "nvSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+        var shapeName = shape.Element(p + "nvSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+
+        var spPr = shape.Element(p + "spPr");
+        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+
+        // Check for custom geometry
+        var custGeom = spPr?.Element(a + "custGeom");
+        var customGeometry = XmlUtilities.ExtractCustomGeometry(custGeom, a);
+
+        // Extract shape type (preset geometry)
+        var prstGeom = spPr?.Element(a + "prstGeom");
+        var shapeType = prstGeom?.Attribute("prst")?.Value ?? (customGeometry != null ? "custom" : null);
+
+        // Extract text from shape
+        var paragraphs = shape.Descendants(a + "p");
+        foreach (var paragraph in paragraphs)
+        {
+            var textRuns = paragraph.Descendants(a + "t");
+            var paragraphText = string.Join("", textRuns.Select(t => t.Value));
+
+            if (!string.IsNullOrWhiteSpace(paragraphText))
+            {
+                elements.Add(new SlideElement(
+                    slideNumber,
+                    "text",
+                    elementIndex++,
+                    Text: paragraphText,
+                    ShapeId: shapeId,
+                    ShapeName: shapeName,
+                    Transform: transform,
+                    ShapeType: shapeType,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId,
+                    CustomGeometry: customGeometry
+                ));
+            }
+        }
+
+        // If shape has no text, still record it
+        if (!shape.Descendants(a + "t").Any())
+        {
+            elements.Add(new SlideElement(
+                slideNumber,
+                "shape",
+                elementIndex++,
+                ShapeId: shapeId,
+                ShapeName: shapeName,
+                Transform: transform,
+                ShapeType: shapeType,
+                GroupLevel: groupLevel,
+                ParentGroupId: parentGroupId,
+                CustomGeometry: customGeometry
+            ));
+        }
+    }
+
+    private static void ProcessPicture(XElement pic, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        var picName = pic.Element(p + "nvPicPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+        var picId = pic.Element(p + "nvPicPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+
+        var spPr = pic.Element(p + "spPr");
+        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+
+        elements.Add(new SlideElement(
+            slideNumber,
+            "image",
+            elementIndex++,
+            ShapeId: picId,
+            ShapeName: picName,
+            Transform: transform,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static void ProcessConnector(XElement cxnSp, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        var connId = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+        var connName = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+
+        var spPr = cxnSp.Element(p + "spPr");
+        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+
+        var prstGeom = spPr?.Element(a + "prstGeom");
+        var shapeType = prstGeom?.Attribute("prst")?.Value;
+
+        elements.Add(new SlideElement(
+            slideNumber,
+            "connector",
+            elementIndex++,
+            ShapeId: connId,
+            ShapeName: connName,
+            Transform: transform,
+            ShapeType: shapeType,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static void ProcessGraphicFrame(XElement graphicFrame, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        var frameId = graphicFrame.Element(p + "nvGraphicFramePr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
+        var frameName = graphicFrame.Element(p + "nvGraphicFramePr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
+
+        var xfrm = graphicFrame.Element(p + "xfrm");
+        var transform = xfrm != null ? ExtractTransform(xfrm, a) : null;
+
+        // Check if it contains a table
+        var graphicData = graphicFrame.Descendants(a + "graphicData").FirstOrDefault();
+        if (graphicData != null)
+        {
+            var table = graphicData.Element(a + "tbl");
+            if (table != null)
+            {
+                ProcessTable(table, elements, ref elementIndex, slideNumber, a, frameId, frameName, transform, groupLevel, parentGroupId);
+                return;
+            }
+
+            // Check for SmartArt
+            XNamespace dgm = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
+            var relIds = graphicData.Element(dgm + "relIds");
+            if (relIds != null)
+            {
+                elements.Add(new SlideElement(
+                    slideNumber,
+                    "smartart",
+                    elementIndex++,
+                    ShapeId: frameId,
+                    ShapeName: frameName,
+                    Transform: transform,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId
+                ));
+                return;
+            }
+
+            // Check for OLE objects
+            XNamespace o = "urn:schemas-microsoft-com:office:office";
+            var oleObj = graphicData.Descendants(o + "oleObj").FirstOrDefault();
+            if (oleObj != null)
+            {
+                var progId = oleObj.Attribute("progId")?.Value;
+                elements.Add(new SlideElement(
+                    slideNumber,
+                    "ole_object",
+                    elementIndex++,
+                    ShapeId: frameId,
+                    ShapeName: frameName,
+                    Transform: transform,
+                    GroupLevel: groupLevel,
+                    ParentGroupId: parentGroupId,
+                    OleObjectType: progId
+                ));
+                return;
+            }
+        }
+
+        // Generic graphic frame if type not identified
+        elements.Add(new SlideElement(
+            slideNumber,
+            "graphic_frame",
+            elementIndex++,
+            ShapeId: frameId,
+            ShapeName: frameName,
+            Transform: transform,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static void ProcessTable(XElement table, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace a, string? tableId, string? tableName, Transform? transform, int groupLevel, string? parentGroupId)
+    {
+        // Add table element
+        elements.Add(new SlideElement(
+            slideNumber,
+            "table",
+            elementIndex++,
+            ShapeId: tableId,
+            ShapeName: tableName,
+            Transform: transform,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+
+        // Process table rows
+        var rows = table.Elements(a + "tr");
+        int rowIndex = 0;
+        foreach (var row in rows)
+        {
+            var cells = row.Elements(a + "tc");
+            int colIndex = 0;
+            foreach (var cell in cells)
+            {
+                // Extract text from cell
+                var cellTexts = cell.Descendants(a + "t").Select(t => t.Value);
+                var cellText = string.Join(" ", cellTexts);
+
+                if (!string.IsNullOrWhiteSpace(cellText))
+                {
+                    elements.Add(new SlideElement(
+                        slideNumber,
+                        "table_cell",
+                        elementIndex++,
+                        Text: cellText,
+                        ShapeId: $"{tableId}_R{rowIndex}C{colIndex}",
+                        ShapeName: $"Cell[{rowIndex},{colIndex}]",
+                        GroupLevel: groupLevel + 1,
+                        ParentGroupId: tableId
+                    ));
+                }
+                colIndex++;
+            }
+            rowIndex++;
+        }
+    }
+
+    private static void ProcessContentPart(XElement contentPart, List<SlideElement> elements, ref int elementIndex,
+        int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
+    {
+        // Extract content part reference
+        XNamespace r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        var relId = contentPart.Attribute(r + "id")?.Value;
+
+        elements.Add(new SlideElement(
+            slideNumber,
+            "content_part",
+            elementIndex++,
+            ContentPartRef: relId,
+            GroupLevel: groupLevel,
+            ParentGroupId: parentGroupId
+        ));
+    }
+
+    private static Transform? ExtractTransform(XElement element, XNamespace a)
+    {
+        var xfrm = element.Element(a + "xfrm");
+        return XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
+    }
+
     private static IReadOnlyList<SlideElement> ExtractSlideElements(string xml, int slideNumber)
     {
         var elements = new List<SlideElement>();
@@ -314,61 +639,11 @@ internal static partial class Program
                 Metadata: new SlideMetadata(slideNumber)
             ));
 
-            // Extract all shapes with text
-            var shapes = doc.Descendants(p + "sp");
-            foreach (var shape in shapes)
+            // Process the root shape tree as a group (this will recursively process all elements)
+            var rootSpTree = doc.Descendants(p + "spTree").FirstOrDefault();
+            if (rootSpTree != null)
             {
-                var shapeId = shape.Element(p + "nvSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
-                var shapeName = shape.Element(p + "nvSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
-
-                // Extract paragraphs from the shape
-                var paragraphs = shape.Descendants(a + "p");
-                foreach (var paragraph in paragraphs)
-                {
-                    // Extract text runs from the paragraph
-                    var textRuns = paragraph.Descendants(a + "t");
-                    var paragraphText = string.Join("", textRuns.Select(t => t.Value));
-
-                    if (!string.IsNullOrWhiteSpace(paragraphText))
-                    {
-                        elements.Add(new SlideElement(
-                            slideNumber,
-                            "text",
-                            elementIndex++,
-                            Text: paragraphText,
-                            ShapeId: shapeId,
-                            ShapeName: shapeName
-                        ));
-                    }
-                }
-
-                // If shape has no text, still record it
-                if (!shape.Descendants(a + "t").Any())
-                {
-                    elements.Add(new SlideElement(
-                        slideNumber,
-                        "shape",
-                        elementIndex++,
-                        ShapeId: shapeId,
-                        ShapeName: shapeName
-                    ));
-                }
-            }
-
-            // Extract images/media references
-            var pics = doc.Descendants(p + "pic");
-            foreach (var pic in pics)
-            {
-                var picName = pic.Element(p + "nvPicPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
-                var picId = pic.Element(p + "nvPicPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
-
-                elements.Add(new SlideElement(
-                    slideNumber,
-                    "image",
-                    elementIndex++,
-                    ShapeId: picId,
-                    ShapeName: picName
-                ));
+                ProcessGroupShape(rootSpTree, elements, ref elementIndex, slideNumber, p, a, 0, null);
             }
         }
         catch (Exception ex)
