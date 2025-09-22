@@ -1,6 +1,10 @@
 # ---- build stage ----
 FROM mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim AS build
 
+# Copy shared library first
+WORKDIR /src/shared-xml-to-jsonl
+COPY scripts/shared-xml-to-jsonl/ ./
+
 # Build pptx-xml-to-jsonl
 WORKDIR /src/pptx
 COPY scripts/pptx-xml-to-jsonl/ ./
