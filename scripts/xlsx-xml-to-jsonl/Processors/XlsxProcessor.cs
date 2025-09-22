@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -53,9 +54,9 @@ public class XlsxProcessor : IXlsxProcessor
 
         try
         {
-            var entries = await ExtractEntriesAsync(inputPath, cancellationToken);
+            var sheetDataByNumber = await ExtractSheetsAsync(inputPath, cancellationToken);
 
-            if (!entries.Any())
+            if (!sheetDataByNumber.Any())
             {
                 _logger.LogWarning("No worksheets found in {Path}", inputPath);
                 return new ProcessingResult
@@ -65,17 +66,23 @@ public class XlsxProcessor : IXlsxProcessor
                 };
             }
 
-            var outputPath = Path.Combine(outputDirectory,
-                Path.GetFileNameWithoutExtension(inputPath) + ".jsonl");
+            var baseName = Path.GetFileNameWithoutExtension(inputPath);
+            var outputPaths = new List<string>();
 
-            await _jsonWriter.WriteJsonLinesAsync(outputPath, entries, cancellationToken);
+            // Write each sheet to a separate file
+            foreach (var (sheetNumber, sheetElements) in sheetDataByNumber)
+            {
+                var outputPath = Path.Combine(outputDirectory, $"{baseName}_sheet{sheetNumber}.jsonl");
+                await WriteSheetToFile(outputPath, sheetElements, cancellationToken);
+                outputPaths.Add(outputPath);
+            }
 
-            _logger.LogInformation("Successfully processed {Count} entries", entries.Count);
+            _logger.LogInformation("Successfully processed {Count} sheets", sheetDataByNumber.Count);
             return new ProcessingResult
             {
                 Success = true,
-                ItemsProcessed = entries.Count,
-                OutputPath = outputPath
+                ItemsProcessed = sheetDataByNumber.Count,
+                OutputPath = string.Join(";", outputPaths)
             };
         }
         catch (Exception ex)
@@ -89,24 +96,41 @@ public class XlsxProcessor : IXlsxProcessor
         }
     }
 
-    private async Task<IReadOnlyList<DocumentEntry>> ExtractEntriesAsync(
+    private async Task WriteSheetToFile(
+        string outputPath,
+        List<SheetElement> sheetElements,
+        CancellationToken cancellationToken)
+    {
+        using var writer = new StreamWriter(outputPath);
+
+        foreach (var element in sheetElements)
+        {
+            var json = JsonSerializer.Serialize(element, ElementJsonSerializerContext.Default.SheetElement);
+            await writer.WriteLineAsync(json);
+        }
+    }
+
+    private async Task<Dictionary<int, List<SheetElement>>> ExtractSheetsAsync(
         string path,
         CancellationToken cancellationToken)
     {
         return await Task.Run(() =>
         {
             using var package = Package.Open(path, FileMode.Open, FileAccess.Read);
-            var entries = new List<DocumentEntry>();
+            var sheetDataByNumber = new Dictionary<int, List<SheetElement>>();
 
             // Load shared strings
             var sharedStrings = LoadSharedStrings(package);
+
+            // Load styles for date detection
+            var dateFormats = LoadDateFormats(package);
 
             // Get workbook part
             var workbookPart = PackageUtilities.GetWorkbookPart(package);
             if (workbookPart == null)
             {
                 _logger.LogWarning("No workbook part found in {Path}", path);
-                return entries;
+                return sheetDataByNumber;
             }
 
             var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
@@ -131,24 +155,13 @@ public class XlsxProcessor : IXlsxProcessor
                     PackUriHelper.ResolvePartUri(workbookPart.Uri, sheetRelationship.TargetUri));
 
                 var worksheetDoc = PackageUtilities.GetXDocument(worksheetPart);
-                var worksheetData = ProcessWorksheet(worksheetDoc, sharedStrings, sheetName);
+                var sheetElements = ProcessWorksheet(worksheetDoc, sharedStrings, dateFormats, sheetNumber, sheetName);
 
-                foreach (var element in worksheetData.Elements)
-                {
-                    entries.Add(new DocumentEntry
-                    {
-                        Document = DocumentUtilities.GetDocumentNameFromPath(path),
-                        DocumentType = "xlsx",
-                        PageNumber = sheetNumber,
-                        SheetName = sheetName,
-                        Element = element
-                    });
-                }
-
+                sheetDataByNumber[sheetNumber] = sheetElements;
                 sheetNumber++;
             }
 
-            return entries;
+            return sheetDataByNumber;
         }, cancellationToken);
     }
 
@@ -174,6 +187,42 @@ public class XlsxProcessor : IXlsxProcessor
         return sharedStringsDict;
     }
 
+    private HashSet<int> LoadDateFormats(Package package)
+    {
+        var dateFormats = new HashSet<int>();
+        var stylesPart = PackageUtilities.GetStylesPart(package);
+
+        if (stylesPart != null)
+        {
+            var stylesDoc = PackageUtilities.GetXDocument(stylesPart);
+
+            // Get custom number formats that look like dates
+            var numFmts = stylesDoc
+                .Descendants(NamespaceConstants.spreadsheet + "numFmt")
+                .Where(n => IsDateFormat(n.Attribute("formatCode")?.Value ?? ""))
+                .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0"));
+
+            foreach (var numFmtId in numFmts)
+            {
+                dateFormats.Add(numFmtId);
+            }
+
+            // Add built-in date format IDs
+            for (int i = 14; i <= 22; i++)
+                dateFormats.Add(i);
+            for (int i = 45; i <= 47; i++)
+                dateFormats.Add(i);
+        }
+
+        return dateFormats;
+    }
+
+    private bool IsDateFormat(string formatCode)
+    {
+        var dateIndicators = new[] { "mm", "dd", "yy", "hh", "ss", "AM/PM" };
+        return dateIndicators.Any(indicator => formatCode.Contains(indicator, StringComparison.OrdinalIgnoreCase));
+    }
+
     private string ExtractTextFromSi(XElement si)
     {
         var texts = new List<string>();
@@ -196,115 +245,176 @@ public class XlsxProcessor : IXlsxProcessor
         return string.Join("", texts);
     }
 
-    private WorksheetData ProcessWorksheet(
+    private List<SheetElement> ProcessWorksheet(
         XDocument worksheetDoc,
         Dictionary<int, string> sharedStrings,
+        HashSet<int> dateFormats,
+        int sheetNumber,
         string sheetName)
     {
-        var data = new WorksheetData { SheetName = sheetName };
+        var elements = new List<SheetElement>();
+        var elementIndex = 0;
+
+        // Add sheet metadata as first element
+        elements.Add(new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "sheet_metadata",
+            ElementIndex = elementIndex++,
+            Metadata = new Dictionary<string, object>
+            {
+                ["sheet_number"] = sheetNumber,
+                ["sheet_name"] = sheetName
+            }
+        });
+
         var sheetData = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "sheetData");
-
         if (sheetData == null)
-            return data;
+            return elements;
 
-        var rows = new List<List<object?>>();
+        // Process all cells
         foreach (var row in sheetData.Elements(NamespaceConstants.spreadsheet + "row"))
         {
-            var rowData = ProcessRow(row, sharedStrings);
-            if (rowData.Any(cell => cell != null))
+            var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0");
+
+            foreach (var cell in row.Elements(NamespaceConstants.spreadsheet + "c"))
             {
-                rows.Add(rowData);
+                var cellElement = ProcessCell(cell, sharedStrings, dateFormats, sheetNumber, sheetName, ref elementIndex);
+                if (cellElement != null)
+                {
+                    cellElement.Row = rowNum;
+                    elements.Add(cellElement);
+                }
             }
         }
 
-        if (rows.Any())
-        {
-            data.Elements.Add(new SpreadsheetTableElement
-            {
-                SheetName = sheetName,
-                Rows = rows
-            });
-        }
-
-        // Process shapes/drawings
-        var drawing = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "drawing");
-        if (drawing != null)
-        {
-            var shapes = ProcessDrawing(drawing);
-            data.Elements.AddRange(shapes);
-        }
-
-        return data;
+        return elements;
     }
 
-    private List<object?> ProcessRow(XElement row, Dictionary<int, string> sharedStrings)
+    private SheetElement? ProcessCell(
+        XElement cell,
+        Dictionary<int, string> sharedStrings,
+        HashSet<int> dateFormats,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
     {
-        var cells = new List<object?>();
-        var rowNum = row.Attribute("r")?.Value;
+        var cellRef = cell.Attribute("r")?.Value;
+        if (string.IsNullOrEmpty(cellRef))
+            return null;
 
-        foreach (var cell in row.Elements(NamespaceConstants.spreadsheet + "c"))
-        {
-            var cellValue = GetCellValue(cell, sharedStrings);
-            cells.Add(cellValue);
-        }
+        var column = GetColumnFromCellReference(cellRef);
 
-        return cells;
-    }
-
-    private object? GetCellValue(XElement cell, Dictionary<int, string> sharedStrings)
-    {
         var cellType = cell.Attribute("t")?.Value;
+        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0");
         var valueElement = cell.Element(NamespaceConstants.spreadsheet + "v");
         var formulaElement = cell.Element(NamespaceConstants.spreadsheet + "f");
 
-        if (valueElement == null)
+        if (valueElement == null && formulaElement == null)
             return null;
 
-        var value = valueElement.Value;
+        var cellValue = new CellValue();
+        var dataType = cellType;
 
-        // Handle different cell types
-        switch (cellType)
+        if (valueElement != null)
         {
-            case "s": // Shared string
-                if (int.TryParse(value, out int stringIndex) && sharedStrings.ContainsKey(stringIndex))
-                {
-                    return sharedStrings[stringIndex];
-                }
-                break;
+            var value = valueElement.Value;
 
-            case "b": // Boolean
-                return value == "1";
-
-            case "e": // Error
-                return $"#ERROR: {value}";
-
-            case "str": // String (inline)
-                return value;
-
-            case "n": // Number (default)
-            default:
-                if (double.TryParse(value, out double numberValue))
-                {
-                    // Check if it's likely a date (Excel dates are numbers)
-                    if (IsLikelyDate(cell))
+            switch (cellType)
+            {
+                case "s": // Shared string
+                    if (int.TryParse(value, out int stringIndex) && sharedStrings.ContainsKey(stringIndex))
                     {
-                        return ConvertExcelDateToDateTime(numberValue);
+                        cellValue.Text = sharedStrings[stringIndex];
+                        cellValue.ValueType = "text";
                     }
-                    return numberValue;
-                }
-                return value;
+                    break;
+
+                case "b": // Boolean
+                    cellValue.Boolean = value == "1";
+                    cellValue.ValueType = "boolean";
+                    break;
+
+                case "e": // Error
+                    cellValue.Text = value;
+                    cellValue.ValueType = "error";
+                    break;
+
+                case "str": // String (inline)
+                case "inlineStr":
+                    cellValue.Text = value;
+                    cellValue.ValueType = "text";
+                    break;
+
+                case "n": // Number (explicit)
+                default:
+                    if (double.TryParse(value, out double numberValue))
+                    {
+                        // Check if it's a date based on format
+                        if (dateFormats.Contains(styleIndex))
+                        {
+                            cellValue.Date = ConvertExcelDateToDateTime(numberValue);
+                            cellValue.ValueType = "date";
+                        }
+                        else
+                        {
+                            cellValue.Number = numberValue;
+                            cellValue.ValueType = "number";
+
+                            // Also store text representation for compatibility
+                            if (numberValue == Math.Floor(numberValue))
+                                cellValue.Text = ((int)numberValue).ToString();
+                            else
+                                cellValue.Text = numberValue.ToString();
+                        }
+                    }
+                    else
+                    {
+                        cellValue.Text = value;
+                        cellValue.ValueType = "text";
+                    }
+                    break;
+            }
         }
 
-        return value;
+        var element = new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "cell",
+            ElementIndex = elementIndex++,
+            CellReference = cellRef,
+            Value = cellValue.Text != null || cellValue.Number != null || cellValue.Boolean != null || cellValue.Date != null ? cellValue : null,
+            Formula = formulaElement?.Value,
+            DataType = dataType,
+            Format = new CellFormat
+            {
+                StyleIndex = styleIndex,
+                NumFmtId = 0, // Would need styles.xml parsing for accurate value
+                IsDate = dateFormats.Contains(styleIndex)
+            },
+            Column = column
+        };
+
+        return element;
     }
 
-    private bool IsLikelyDate(XElement cell)
+    private int GetColumnFromCellReference(string cellRef)
     {
-        // Check if cell has a style that indicates it's a date
-        var styleIndex = cell.Attribute("s")?.Value;
-        // This is a simplified check - in a full implementation,
-        // you would check the style definitions in styles.xml
-        return false;
+        var column = 0;
+        foreach (char c in cellRef)
+        {
+            if (char.IsLetter(c))
+            {
+                column = column * 26 + (c - 'A' + 1);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return column;
     }
 
     private DateTime ConvertExcelDateToDateTime(double excelDate)
@@ -314,19 +424,5 @@ public class XlsxProcessor : IXlsxProcessor
             return new DateTime(1900, 1, 1).AddDays(excelDate - 1);
         else
             return new DateTime(1900, 1, 1).AddDays(excelDate - 2);
-    }
-
-    private List<ElementBase> ProcessDrawing(XElement drawing)
-    {
-        var shapes = new List<ElementBase>();
-        // Simplified - would need to follow relationship to drawing part
-        // and process the shapes there
-        return shapes;
-    }
-
-    private class WorksheetData
-    {
-        public string SheetName { get; set; } = "";
-        public List<ElementBase> Elements { get; set; } = new();
     }
 }

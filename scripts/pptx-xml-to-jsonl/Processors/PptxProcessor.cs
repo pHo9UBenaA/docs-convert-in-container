@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -53,9 +54,9 @@ public class PptxProcessor : IPptxProcessor
 
         try
         {
-            var entries = await ExtractEntriesAsync(inputPath, cancellationToken);
+            var slideDataByNumber = await ExtractSlidesAsync(inputPath, cancellationToken);
 
-            if (!entries.Any())
+            if (!slideDataByNumber.Any())
             {
                 _logger.LogWarning("No slides found in {Path}", inputPath);
                 return new ProcessingResult
@@ -65,17 +66,23 @@ public class PptxProcessor : IPptxProcessor
                 };
             }
 
-            var outputPath = Path.Combine(outputDirectory,
-                Path.GetFileNameWithoutExtension(inputPath) + ".jsonl");
+            var baseName = Path.GetFileNameWithoutExtension(inputPath);
+            var outputPaths = new List<string>();
 
-            await _jsonWriter.WriteJsonLinesAsync(outputPath, entries, cancellationToken);
+            // Write each slide to a separate file
+            foreach (var (slideNumber, slideElements) in slideDataByNumber)
+            {
+                var outputPath = Path.Combine(outputDirectory, $"{baseName}_page-{slideNumber}.jsonl");
+                await WriteSlideToFile(outputPath, slideElements, cancellationToken);
+                outputPaths.Add(outputPath);
+            }
 
-            _logger.LogInformation("Successfully processed {Count} slides", entries.Count);
+            _logger.LogInformation("Successfully processed {Count} slides", slideDataByNumber.Count);
             return new SharedXmlToJsonl.Models.ProcessingResult
             {
                 Success = true,
-                ItemsProcessed = entries.Count,
-                OutputPath = outputPath
+                ItemsProcessed = slideDataByNumber.Count,
+                OutputPath = string.Join(";", outputPaths)
             };
         }
         catch (Exception ex)
@@ -89,21 +96,34 @@ public class PptxProcessor : IPptxProcessor
         }
     }
 
-    private async Task<IReadOnlyList<DocumentEntry>> ExtractEntriesAsync(
+    private async Task WriteSlideToFile(
+        string outputPath,
+        List<SlideElement> slideElements,
+        CancellationToken cancellationToken)
+    {
+        using var writer = new StreamWriter(outputPath);
+
+        foreach (var element in slideElements)
+        {
+            var json = JsonSerializer.Serialize(element, ElementJsonSerializerContext.Default.SlideElement);
+            await writer.WriteLineAsync(json);
+        }
+    }
+
+    private async Task<Dictionary<int, List<SlideElement>>> ExtractSlidesAsync(
         string path,
         CancellationToken cancellationToken)
     {
         return await Task.Run(() =>
         {
             using var package = Package.Open(path, FileMode.Open, FileAccess.Read);
-            var entries = new List<DocumentEntry>();
-            var slideNumber = 1;
+            var slideDataByNumber = new Dictionary<int, List<SlideElement>>();
 
             var presentationPart = PackageUtilities.GetPresentationPart(package);
             if (presentationPart == null)
             {
                 _logger.LogWarning("No presentation part found in {Path}", path);
-                return entries;
+                return slideDataByNumber;
             }
 
             var presentationDoc = PackageUtilities.GetXDocument(presentationPart);
@@ -112,6 +132,7 @@ public class PptxProcessor : IPptxProcessor
                 .Elements(NamespaceConstants.p + "sldId")
                 .ToList();
 
+            var slideNumber = 1;
             foreach (var slideId in slideIds)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -125,29 +146,30 @@ public class PptxProcessor : IPptxProcessor
                     PackUriHelper.ResolvePartUri(presentationPart.Uri, slideRelationship.TargetUri));
 
                 var slideDoc = PackageUtilities.GetXDocument(slidePart);
-                var elements = ExtractSlideElements(slideDoc, slideNumber);
+                var slideElements = ExtractSlideElements(slideDoc, slideNumber);
 
-                foreach (var element in elements)
-                {
-                    entries.Add(new DocumentEntry
-                    {
-                        Document = DocumentUtilities.GetDocumentNameFromPath(path),
-                        DocumentType = "pptx",
-                        PageNumber = slideNumber,
-                        Element = element
-                    });
-                }
-
+                slideDataByNumber[slideNumber] = slideElements;
                 slideNumber++;
             }
 
-            return entries;
+            return slideDataByNumber;
         }, cancellationToken);
     }
 
-    private IReadOnlyList<ElementBase> ExtractSlideElements(XDocument slideDoc, int slideNumber)
+    private List<SlideElement> ExtractSlideElements(XDocument slideDoc, int slideNumber)
     {
-        var elements = new List<ElementBase>();
+        var elements = new List<SlideElement>();
+        var elementIndex = 0;
+
+        // Add slide metadata as first element
+        elements.Add(new SlideElement
+        {
+            SlideNumber = slideNumber,
+            ElementType = "slide_metadata",
+            ElementIndex = elementIndex++,
+            Metadata = new Dictionary<string, object> { ["slide_number"] = slideNumber }
+        });
+
         var cSld = slideDoc.Root?.Element(NamespaceConstants.p + "cSld");
         if (cSld == null)
             return elements;
@@ -163,27 +185,25 @@ public class PptxProcessor : IPptxProcessor
             switch (localName)
             {
                 case "sp":  // Shape
-                    var shape = ProcessShape(element);
-                    if (shape != null)
-                        elements.Add(shape);
+                    var shapeElements = ProcessShape(element, slideNumber, ref elementIndex);
+                    elements.AddRange(shapeElements);
                     break;
 
                 case "graphicFrame":  // Table, Chart, SmartArt
-                    var graphic = ProcessGraphicFrame(element);
-                    if (graphic != null)
-                        elements.Add(graphic);
+                    var graphicElements = ProcessGraphicFrame(element, slideNumber, ref elementIndex);
+                    elements.AddRange(graphicElements);
                     break;
 
                 case "cxnSp":  // Connector
-                    var connector = ProcessConnector(element);
-                    if (connector != null)
-                        elements.Add(connector);
+                    var connectorElement = ProcessConnector(element, slideNumber, ref elementIndex);
+                    if (connectorElement != null)
+                        elements.Add(connectorElement);
                     break;
 
                 case "pic":  // Picture
-                    var picture = ProcessPicture(element);
-                    if (picture != null)
-                        elements.Add(picture);
+                    var pictureElement = ProcessPicture(element, slideNumber, ref elementIndex);
+                    if (pictureElement != null)
+                        elements.Add(pictureElement);
                     break;
             }
         }
@@ -191,90 +211,213 @@ public class PptxProcessor : IPptxProcessor
         return elements;
     }
 
-    private ElementBase? ProcessShape(XElement shapeElement)
+    private List<SlideElement> ProcessShape(XElement shapeElement, int slideNumber, ref int elementIndex)
     {
+        var elements = new List<SlideElement>();
+
         var nvSpPr = shapeElement.Element(NamespaceConstants.p + "nvSpPr");
         var cNvPr = nvSpPr?.Element(NamespaceConstants.p + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
         var spPr = shapeElement.Element(NamespaceConstants.p + "spPr");
-        var position = XmlUtilities.GetPositionFromTransform(spPr, NamespaceConstants.a);
-        var size = XmlUtilities.GetSizeFromTransform(spPr, NamespaceConstants.a);
+        var transform = ExtractTransform(spPr);
 
+        // Extract shape type
+        var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
+        var shapeType = prstGeom?.Attribute("prst")?.Value;
+
+        // Add shape element
+        var shapeEl = new SlideElement
+        {
+            SlideNumber = slideNumber,
+            ElementType = "shape",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            Transform = transform,
+            ShapeType = shapeType,
+            GroupLevel = 1
+        };
+        elements.Add(shapeEl);
+
+        // Extract text content
         var txBody = shapeElement.Element(NamespaceConstants.p + "txBody");
         var text = ExtractTextContent(txBody);
-
-        if (string.IsNullOrEmpty(text) && position == null && size == null)
-            return null;
-
-        return new ShapeElement
+        if (!string.IsNullOrEmpty(text))
         {
-            Id = id,
-            Name = name,
-            Text = text,
-            Position = position,
-            Size = size
-        };
+            var textEl = new SlideElement
+            {
+                SlideNumber = slideNumber,
+                ElementType = "text",
+                ElementIndex = elementIndex++,
+                Text = text,
+                ShapeId = id,
+                ShapeName = name,
+                Transform = transform,
+                GroupLevel = 1
+            };
+            elements.Add(textEl);
+        }
+
+        return elements;
     }
 
-    private ElementBase? ProcessGraphicFrame(XElement graphicFrame)
+    private SharedXmlToJsonl.Models.Transform? ExtractTransform(XElement? spPr)
     {
+        if (spPr == null)
+            return null;
+
+        var xfrm = spPr.Element(NamespaceConstants.a + "xfrm");
+        if (xfrm == null)
+            return null;
+
+        var transform = new SharedXmlToJsonl.Models.Transform();
+
+        var off = xfrm.Element(NamespaceConstants.a + "off");
+        if (off != null)
+        {
+            var x = off.Attribute("x")?.Value;
+            var y = off.Attribute("y")?.Value;
+            if (x != null && y != null && int.TryParse(x, out int xVal) && int.TryParse(y, out int yVal))
+            {
+                transform.Position = new Position(xVal, yVal);
+            }
+        }
+
+        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        if (ext != null)
+        {
+            var cx = ext.Attribute("cx")?.Value;
+            var cy = ext.Attribute("cy")?.Value;
+            if (cx != null && cy != null && int.TryParse(cx, out int width) && int.TryParse(cy, out int height))
+            {
+                transform.Size = new Size(width, height);
+            }
+        }
+
+        return transform;
+    }
+
+    private List<SlideElement> ProcessGraphicFrame(XElement graphicFrame, int slideNumber, ref int elementIndex)
+    {
+        var elements = new List<SlideElement>();
+
+        var nvGraphicFramePr = graphicFrame.Element(NamespaceConstants.p + "nvGraphicFramePr");
+        var cNvPr = nvGraphicFramePr?.Element(NamespaceConstants.p + "cNvPr");
+        var id = cNvPr?.Attribute("id")?.Value ?? "";
+        var name = cNvPr?.Attribute("name")?.Value ?? "";
+
+        var xfrm = graphicFrame.Element(NamespaceConstants.p + "xfrm");
+        var transform = ExtractTransformFromXfrm(xfrm);
+
         var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
         var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
 
         if (graphicData == null)
-            return null;
+            return elements;
 
         var tbl = graphicData.Element(NamespaceConstants.a + "tbl");
         if (tbl != null)
         {
-            return ProcessTable(tbl);
+            var tableElement = new SlideElement
+            {
+                SlideNumber = slideNumber,
+                ElementType = "table",
+                ElementIndex = elementIndex++,
+                ShapeId = id,
+                ShapeName = name,
+                Transform = transform,
+                ShapeType = "table",
+                GroupLevel = 1
+            };
+            elements.Add(tableElement);
+
+            // Process table rows
+            foreach (var tr in tbl.Elements(NamespaceConstants.a + "tr"))
+            {
+                foreach (var tc in tr.Elements(NamespaceConstants.a + "tc"))
+                {
+                    var txBody = tc.Element(NamespaceConstants.a + "txBody");
+                    var cellText = ExtractTextContent(txBody);
+                    if (!string.IsNullOrEmpty(cellText))
+                    {
+                        var cellElement = new SlideElement
+                        {
+                            SlideNumber = slideNumber,
+                            ElementType = "table_cell",
+                            ElementIndex = elementIndex++,
+                            Text = cellText,
+                            ShapeId = id,
+                            ShapeName = name,
+                            Transform = transform,
+                            GroupLevel = 2
+                        };
+                        elements.Add(cellElement);
+                    }
+                }
+            }
         }
 
-        return null;
+        return elements;
     }
 
-    private ElementBase? ProcessTable(XElement tableElement)
+    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
     {
-        var rows = new List<List<string>>();
-
-        foreach (var tr in tableElement.Elements(NamespaceConstants.a + "tr"))
-        {
-            var row = new List<string>();
-            foreach (var tc in tr.Elements(NamespaceConstants.a + "tc"))
-            {
-                var txBody = tc.Element(NamespaceConstants.a + "txBody");
-                var cellText = ExtractTextContent(txBody);
-                row.Add(cellText);
-            }
-            rows.Add(row);
-        }
-
-        if (!rows.Any())
+        if (xfrm == null)
             return null;
 
-        return new TableElement
+        var transform = new SharedXmlToJsonl.Models.Transform();
+
+        var off = xfrm.Element(NamespaceConstants.a + "off");
+        if (off != null)
         {
-            Rows = rows
-        };
+            var x = off.Attribute("x")?.Value;
+            var y = off.Attribute("y")?.Value;
+            if (x != null && y != null && int.TryParse(x, out int xVal) && int.TryParse(y, out int yVal))
+            {
+                transform.Position = new Position(xVal, yVal);
+            }
+        }
+
+        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        if (ext != null)
+        {
+            var cx = ext.Attribute("cx")?.Value;
+            var cy = ext.Attribute("cy")?.Value;
+            if (cx != null && cy != null && int.TryParse(cx, out int width) && int.TryParse(cy, out int height))
+            {
+                transform.Size = new Size(width, height);
+            }
+        }
+
+        return transform;
     }
 
-    private ElementBase? ProcessConnector(XElement connectorElement)
+    private SlideElement? ProcessConnector(XElement connectorElement, int slideNumber, ref int elementIndex)
     {
         var nvCxnSpPr = connectorElement.Element(NamespaceConstants.p + "nvCxnSpPr");
         var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.p + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
-        return new ConnectorElement
+        var spPr = connectorElement.Element(NamespaceConstants.p + "spPr");
+        var transform = ExtractTransform(spPr);
+
+        return new SlideElement
         {
-            Id = id,
-            Name = name
+            SlideNumber = slideNumber,
+            ElementType = "connector",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            Transform = transform,
+            ShapeType = "connector",
+            GroupLevel = 1
         };
     }
 
-    private ElementBase? ProcessPicture(XElement pictureElement)
+    private SlideElement? ProcessPicture(XElement pictureElement, int slideNumber, ref int elementIndex)
     {
         var nvPicPr = pictureElement.Element(NamespaceConstants.p + "nvPicPr");
         var cNvPr = nvPicPr?.Element(NamespaceConstants.p + "cNvPr");
@@ -283,16 +426,19 @@ public class PptxProcessor : IPptxProcessor
         var descr = cNvPr?.Attribute("descr")?.Value;
 
         var spPr = pictureElement.Element(NamespaceConstants.p + "spPr");
-        var position = XmlUtilities.GetPositionFromTransform(spPr, NamespaceConstants.a);
-        var size = XmlUtilities.GetSizeFromTransform(spPr, NamespaceConstants.a);
+        var transform = ExtractTransform(spPr);
 
-        return new PictureElement
+        return new SlideElement
         {
-            Id = id,
-            Name = name,
-            Description = descr,
-            Position = position,
-            Size = size
+            SlideNumber = slideNumber,
+            ElementType = "picture",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            Text = descr,
+            Transform = transform,
+            ShapeType = "picture",
+            GroupLevel = 1
         };
     }
 

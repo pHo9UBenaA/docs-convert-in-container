@@ -155,4 +155,15 @@ public static class PackageUtilities
 
         return sharedStringsPart;  // May be null if no shared strings exist
     }
+
+    /// <summary>
+    /// Gets the styles part from an Excel package
+    /// </summary>
+    public static PackagePart? GetStylesPart(Package package)
+    {
+        var stylesPart = package.GetParts()
+            .FirstOrDefault(p => p.Uri.ToString().EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
+
+        return stylesPart;  // May be null if no styles exist
+    }
 }
