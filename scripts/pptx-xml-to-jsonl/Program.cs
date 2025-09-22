@@ -21,8 +21,9 @@ internal static partial class Program
     private const int ExitUsageError = 2;
     private const int ExitProcessingError = 3;
 
-    private const string RelationshipContentType = "application/vnd.openxmlformats-package.relationships+xml";
-    private const string DefaultXmlContentType = "application/xml";
+    // Content types are now in NamespaceConstants
+    private const string RelationshipContentType = NamespaceConstants.RelationshipContentType;
+    private const string DefaultXmlContentType = NamespaceConstants.DefaultXmlContentType;
 
     // Use custom context with relaxed encoding
     private static readonly SourceGenerationContext JsonContext = SourceGenerationContext.Custom;
@@ -326,7 +327,7 @@ internal static partial class Program
             var grpId = groupElement.Element(p + "nvGrpSpPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
             var grpName = groupElement.Element(p + "nvGrpSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
             var grpSpPr = groupElement.Element(p + "grpSpPr");
-            var transform = grpSpPr != null ? ExtractTransform(grpSpPr, a) : null;
+            var transform = grpSpPr != null ? ShapeProcessor.ExtractTransform(grpSpPr, a) : null;
 
             // Add the group itself as an element
             elements.Add(new SlideElement(
@@ -383,21 +384,20 @@ internal static partial class Program
         var shapeName = shape.Element(p + "nvSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
 
         var spPr = shape.Element(p + "spPr");
-        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+        var transform = spPr != null ? ShapeProcessor.ExtractTransform(spPr, a) : null;
 
         // Check for custom geometry
         var custGeom = spPr?.Element(a + "custGeom");
         var customGeometry = XmlUtilities.ExtractCustomGeometry(custGeom, a);
 
         // Extract shape type (preset geometry)
-        var prstGeom = spPr?.Element(a + "prstGeom");
-        var shapeType = prstGeom?.Attribute("prst")?.Value ?? (customGeometry != null ? "custom" : null);
+        var shapeType = ShapeProcessor.ExtractShapeType(spPr, a);
 
         // Extract line properties
-        var lineProperties = ExtractLineProperties(spPr, a);
+        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, a);
 
         // Extract fill information
-        var (hasFill, fillColor) = ExtractFillInfo(spPr, a);
+        var (hasFill, fillColor) = ShapeProcessor.ExtractFillInfo(spPr, a);
 
         // First, record the shape itself
         elements.Add(new SlideElement(
@@ -463,10 +463,10 @@ internal static partial class Program
         var picId = pic.Element(p + "nvPicPr")?.Element(p + "cNvPr")?.Attribute("id")?.Value;
 
         var spPr = pic.Element(p + "spPr");
-        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+        var transform = spPr != null ? ShapeProcessor.ExtractTransform(spPr, a) : null;
 
         // Extract line properties for picture border
-        var lineProperties = ExtractLineProperties(spPr, a);
+        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, a);
 
         elements.Add(new SlideElement(
             slideNumber,
@@ -488,13 +488,12 @@ internal static partial class Program
         var connName = cxnSp.Element(p + "nvCxnSpPr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
 
         var spPr = cxnSp.Element(p + "spPr");
-        var transform = spPr != null ? ExtractTransform(spPr, a) : null;
+        var transform = spPr != null ? ShapeProcessor.ExtractTransform(spPr, a) : null;
 
-        var prstGeom = spPr?.Element(a + "prstGeom");
-        var shapeType = prstGeom?.Attribute("prst")?.Value;
+        var shapeType = ShapeProcessor.ExtractConnectorType(spPr, a);
 
         // Extract line properties for connector
-        var lineProperties = ExtractLineProperties(spPr, a);
+        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, a);
 
         elements.Add(new SlideElement(
             slideNumber,
@@ -517,7 +516,7 @@ internal static partial class Program
         var frameName = graphicFrame.Element(p + "nvGraphicFramePr")?.Element(p + "cNvPr")?.Attribute("name")?.Value;
 
         var xfrm = graphicFrame.Element(p + "xfrm");
-        var transform = xfrm != null ? ExtractTransform(xfrm, a) : null;
+        var transform = xfrm != null ? XmlUtilities.ExtractTransformFromXfrm(xfrm, a) : null;
 
         // Check if it contains a table
         var graphicData = graphicFrame.Descendants(a + "graphicData").FirstOrDefault();
@@ -633,7 +632,7 @@ internal static partial class Program
         int slideNumber, XNamespace p, XNamespace a, int groupLevel, string? parentGroupId)
     {
         // Extract content part reference
-        XNamespace r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        XNamespace r = NamespaceConstants.R;
         var relId = contentPart.Attribute(r + "id")?.Value;
 
         elements.Add(new SlideElement(
@@ -646,95 +645,7 @@ internal static partial class Program
         ));
     }
 
-    private static Transform? ExtractTransform(XElement element, XNamespace a)
-    {
-        var xfrm = element.Element(a + "xfrm");
-        return XmlUtilities.ExtractTransformFromXfrm(xfrm, a);
-    }
-
-    private static LineProperties? ExtractLineProperties(XElement? spPr, XNamespace a)
-    {
-        if (spPr == null) return null;
-
-        var ln = spPr.Element(a + "ln");
-        if (ln == null) return null;
-
-        // Extract line width
-        var width = ln.Attribute("w")?.Value;
-        long? lineWidth = null;
-        if (width != null && long.TryParse(width, out var w))
-        {
-            lineWidth = w;
-        }
-
-        // Extract line color
-        string? lineColor = null;
-        var solidFill = ln.Element(a + "solidFill");
-        if (solidFill != null)
-        {
-            var srgbClr = solidFill.Element(a + "srgbClr");
-            if (srgbClr != null)
-            {
-                lineColor = srgbClr.Attribute("val")?.Value;
-            }
-        }
-
-        // Extract dash style
-        var prstDash = ln.Element(a + "prstDash");
-        var dashStyle = prstDash?.Attribute("val")?.Value;
-
-        // Extract compound line type
-        var cmpd = ln.Attribute("cmpd")?.Value;
-
-        if (lineWidth == null && lineColor == null && dashStyle == null && cmpd == null)
-        {
-            return null;
-        }
-
-        return new LineProperties(
-            Color: lineColor,
-            Width: lineWidth,
-            DashStyle: dashStyle,
-            CompoundLineType: cmpd
-        );
-    }
-
-    private static (bool? hasFill, string? fillColor) ExtractFillInfo(XElement? spPr, XNamespace a)
-    {
-        if (spPr == null) return (null, null);
-
-        // Check for no fill
-        var noFill = spPr.Element(a + "noFill");
-        if (noFill != null)
-        {
-            return (false, null);
-        }
-
-        // Check for solid fill
-        var solidFill = spPr.Element(a + "solidFill");
-        if (solidFill != null)
-        {
-            var srgbClr = solidFill.Element(a + "srgbClr");
-            var fillColor = srgbClr?.Attribute("val")?.Value;
-            return (true, fillColor);
-        }
-
-        // Check for gradient fill
-        var gradFill = spPr.Element(a + "gradFill");
-        if (gradFill != null)
-        {
-            return (true, "gradient");
-        }
-
-        // Check for pattern fill
-        var pattFill = spPr.Element(a + "pattFill");
-        if (pattFill != null)
-        {
-            return (true, "pattern");
-        }
-
-        return (null, null);
-    }
+    // Helper methods moved to ShapeProcessor in SharedXmlToJsonl
 
     private static IReadOnlyList<SlideElement> ExtractSlideElements(string xml, int slideNumber)
     {
@@ -744,8 +655,8 @@ internal static partial class Program
         try
         {
             var doc = XDocument.Parse(xml);
-            XNamespace p = "http://schemas.openxmlformats.org/presentationml/2006/main";
-            XNamespace a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+            XNamespace p = NamespaceConstants.P;
+            XNamespace a = NamespaceConstants.A;
 
             // Add slide metadata as first element
             elements.Add(new SlideElement(

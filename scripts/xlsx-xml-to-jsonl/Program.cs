@@ -24,8 +24,9 @@ internal static partial class Program
     private const int ExitUsageError = 2;
     private const int ExitProcessingError = 3;
 
-    private const string RelationshipContentType = "application/vnd.openxmlformats-package.relationships+xml";
-    private const string DefaultXmlContentType = "application/xml";
+    // Content types are now in NamespaceConstants
+    private const string RelationshipContentType = NamespaceConstants.RelationshipContentType;
+    private const string DefaultXmlContentType = NamespaceConstants.DefaultXmlContentType;
 
     // Use custom context with relaxed encoding
     private static readonly SourceGenerationContext JsonContext = SourceGenerationContext.Custom;
@@ -732,8 +733,8 @@ internal static partial class Program
         try
         {
             var doc = XDocument.Parse(xml);
-            XNamespace xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
-            XNamespace a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+            XNamespace xdr = NamespaceConstants.XDR;
+            XNamespace a = NamespaceConstants.A;
 
             // Process all anchors (two-cell, one-cell, and absolute)
             ProcessAnchors(doc, elements, ref elementIndex, sheetNumber, sheetName, xdr, a);
@@ -956,8 +957,7 @@ internal static partial class Program
         var customGeometry = XmlUtilities.ExtractCustomGeometry(custGeom, a);
 
         // Extract shape type
-        var prstGeom = spPr?.Element(a + "prstGeom");
-        var shapeType = prstGeom?.Attribute("prst")?.Value ?? (customGeometry != null ? "custom" : null);
+        var shapeType = ShapeProcessor.ExtractShapeType(spPr, a);
 
         elements.Add(new SheetElement(
             sheetNumber,
@@ -1172,8 +1172,7 @@ internal static partial class Program
         }
 
         // Extract connector type
-        var prstGeom = spPr?.Element(a + "prstGeom");
-        var connectorType = prstGeom?.Attribute("prst")?.Value;
+        var connectorType = ShapeProcessor.ExtractConnectorType(spPr, a);
 
         elements.Add(new SheetElement(
             sheetNumber,
