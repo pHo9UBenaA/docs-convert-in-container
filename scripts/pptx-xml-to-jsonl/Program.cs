@@ -22,15 +22,8 @@ internal static partial class Program
     private const int ExitUsageError = CommonBase.ExitUsageError;
     private const int ExitProcessingError = CommonBase.ExitProcessingError;
 
-    // Content types are now in NamespaceConstants
-    private const string RelationshipContentType = NamespaceConstants.RelationshipContentType;
-    private const string DefaultXmlContentType = NamespaceConstants.DefaultXmlContentType;
-
     // Use custom context with relaxed encoding
     private static readonly SourceGenerationContext JsonContext = SourceGenerationContext.Custom;
-
-    // UTF8 encoding from CommonBase
-    private static readonly Encoding Utf8NoBom = CommonBase.Utf8NoBom;
 
     // Type aliases for common types from SharedXmlToJsonl
     private record SlideMetadata(int SlideNumber);
@@ -117,7 +110,7 @@ internal static partial class Program
         using var archive = ZipFile.OpenRead(pptxPath);
 
         var entries = archive.Entries
-            .Where(IsXmlEntry)
+            .Where(PackageUtilities.IsXmlEntry)
             .Select(entry => BuildEntry(entry, package))
             .OrderBy(entry => entry.PartName, StringComparer.Ordinal)
             .ToList();
@@ -192,74 +185,20 @@ internal static partial class Program
         var partName = "/" + entry.FullName.Replace('\\', '/');
 
         using var stream = entry.Open();
-        using var reader = new StreamReader(stream, Utf8NoBom, detectEncodingFromByteOrderMarks: true);
+        using var reader = new StreamReader(stream, CommonBase.Utf8NoBom, detectEncodingFromByteOrderMarks: true);
         var xml = reader.ReadToEnd();
-        var sizeBytes = Utf8NoBom.GetByteCount(xml);
+        var sizeBytes = CommonBase.Utf8NoBom.GetByteCount(xml);
 
-        if (TryGetPackagePart(package, partName, out var packagePart))
+        if (PackageUtilities.TryGetPackagePart(package, partName, out var packagePart))
         {
-            if (string.Equals(packagePart.ContentType, RelationshipContentType, StringComparison.OrdinalIgnoreCase))
-            {
-                return new JsonlEntry(partName, packagePart.ContentType, Array.Empty<RelationshipInfo>(), sizeBytes, xml);
-            }
-
-            var relationships = packagePart
-                .GetRelationships()
-                .Select(rel => new RelationshipInfo(
-                    rel.Id,
-                    rel.RelationshipType,
-                    rel.TargetUri?.ToString() ?? string.Empty,
-                    rel.TargetMode.ToString()))
-                .OrderBy(rel => rel.Id, StringComparer.Ordinal)
-                .ToArray();
-
+            var relationships = PackageUtilities.ExtractRelationships(packagePart);
             return new JsonlEntry(partName, packagePart.ContentType, relationships, sizeBytes, xml);
         }
 
-        var fallbackContentType = DetermineFallbackContentType(partName);
+        var fallbackContentType = PackageUtilities.DetermineFallbackContentType(partName);
         return new JsonlEntry(partName, fallbackContentType, Array.Empty<RelationshipInfo>(), sizeBytes, xml);
     }
 
-    private static bool TryGetPackagePart(Package package, string partName, out PackagePart packagePart)
-    {
-        packagePart = null!;
-        try
-        {
-            var uri = PackUriHelper.CreatePartUri(new Uri(partName, UriKind.RelativeOrAbsolute));
-            if (package.PartExists(uri))
-            {
-                packagePart = package.GetPart(uri);
-                return true;
-            }
-        }
-        catch (ArgumentException)
-        {
-            // Relationship parts such as "/_rels/.rels" or invalid URIs fall through here.
-        }
-        return false;
-    }
-
-    private static string DetermineFallbackContentType(string partName)
-    {
-        if (partName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
-        {
-            return RelationshipContentType;
-        }
-
-        return DefaultXmlContentType;
-    }
-
-    private static bool IsXmlEntry(ZipArchiveEntry entry)
-    {
-        var name = entry.FullName;
-        if (name.Equals("[Content_Types].xml", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
-            || name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase);
-    }
 
     private static int? TryExtractSlideNumber(string partName)
     {
@@ -293,7 +232,7 @@ internal static partial class Program
         }
 
         using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var writer = new StreamWriter(stream, Utf8NoBom);
+        using var writer = new StreamWriter(stream, CommonBase.Utf8NoBom);
 
         foreach (var entry in entries)
         {
@@ -694,7 +633,7 @@ internal static partial class Program
         }
 
         using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var writer = new StreamWriter(stream, Utf8NoBom);
+        using var writer = new StreamWriter(stream, CommonBase.Utf8NoBom);
 
         foreach (var entry in entries)
         {
