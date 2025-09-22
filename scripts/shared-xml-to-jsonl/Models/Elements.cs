@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using SharedXmlToJsonl;
 
 namespace SharedXmlToJsonl.Models;
 
@@ -279,6 +280,8 @@ public class CellFormat
 [JsonSerializable(typeof(Size))]
 [JsonSerializable(typeof(CellValue))]
 [JsonSerializable(typeof(CellFormat))]
+[JsonSerializable(typeof(LineProperties))]
+[JsonSerializable(typeof(CellAnchor))]
 [JsonSerializable(typeof(List<List<string>>))]
 [JsonSerializable(typeof(List<List<object?>>))]
 [JsonSerializable(typeof(Dictionary<string, object>))]

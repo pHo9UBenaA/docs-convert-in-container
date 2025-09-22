@@ -106,8 +106,6 @@ public class PptxProcessor : IPptxProcessor
         foreach (var element in slideElements)
         {
             var json = JsonSerializer.Serialize(element, ElementJsonSerializerContext.Default.SlideElement);
-            // Decode Unicode escapes for Japanese characters
-            json = System.Text.RegularExpressions.Regex.Unescape(json);
             await writer.WriteLineAsync(json);
         }
     }
@@ -229,6 +227,12 @@ public class PptxProcessor : IPptxProcessor
         var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
+        // Extract line properties
+        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, NamespaceConstants.a);
+
+        // Extract fill information
+        var (hasFill, fillColor) = ShapeProcessor.ExtractFillInfo(spPr, NamespaceConstants.a);
+
         // Add shape element
         var shapeEl = new SlideElement
         {
@@ -239,27 +243,36 @@ public class PptxProcessor : IPptxProcessor
             ShapeName = name,
             Transform = transform,
             ShapeType = shapeType,
-            GroupLevel = 1
+            GroupLevel = 1,
+            LineProperties = lineProperties,
+            HasFill = hasFill,
+            FillColor = fillColor
         };
         elements.Add(shapeEl);
 
-        // Extract text content
+        // Extract text content - each paragraph as separate element
         var txBody = shapeElement.Element(NamespaceConstants.p + "txBody");
-        var text = ExtractTextContent(txBody);
-        if (!string.IsNullOrEmpty(text))
+        if (txBody != null)
         {
-            var textEl = new SlideElement
+            foreach (var paragraph in txBody.Elements(NamespaceConstants.a + "p"))
             {
-                SlideNumber = slideNumber,
-                ElementType = "text",
-                ElementIndex = elementIndex++,
-                Text = text,
-                ShapeId = id,
-                ShapeName = name,
-                Transform = transform,
-                GroupLevel = 1
-            };
-            elements.Add(textEl);
+                var paragraphText = ExtractParagraphText(paragraph);
+                if (!string.IsNullOrEmpty(paragraphText))
+                {
+                    var textEl = new SlideElement
+                    {
+                        SlideNumber = slideNumber,
+                        ElementType = "text",
+                        ElementIndex = elementIndex++,
+                        Text = paragraphText,
+                        ShapeId = id,
+                        ShapeName = name,
+                        Transform = transform,
+                        GroupLevel = 1
+                    };
+                    elements.Add(textEl);
+                }
+            }
         }
 
         return elements;
@@ -444,6 +457,19 @@ public class PptxProcessor : IPptxProcessor
         };
     }
 
+    private string ExtractParagraphText(XElement paragraph)
+    {
+        var paragraphText = new List<string>();
+        foreach (var run in paragraph.Elements(NamespaceConstants.a + "r"))
+        {
+            var text = run.Element(NamespaceConstants.a + "t")?.Value;
+            if (!string.IsNullOrEmpty(text))
+                paragraphText.Add(text);
+        }
+
+        return string.Join("", paragraphText);
+    }
+
     private string ExtractTextContent(XElement? txBody)
     {
         if (txBody == null)
@@ -452,16 +478,9 @@ public class PptxProcessor : IPptxProcessor
         var texts = new List<string>();
         foreach (var paragraph in txBody.Elements(NamespaceConstants.a + "p"))
         {
-            var paragraphText = new List<string>();
-            foreach (var run in paragraph.Elements(NamespaceConstants.a + "r"))
-            {
-                var text = run.Element(NamespaceConstants.a + "t")?.Value;
-                if (!string.IsNullOrEmpty(text))
-                    paragraphText.Add(text);
-            }
-
-            if (paragraphText.Any())
-                texts.Add(string.Join("", paragraphText));
+            var paragraphText = ExtractParagraphText(paragraph);
+            if (!string.IsNullOrEmpty(paragraphText))
+                texts.Add(paragraphText);
         }
 
         return string.Join("\n", texts);
