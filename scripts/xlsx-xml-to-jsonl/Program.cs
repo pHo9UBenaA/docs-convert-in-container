@@ -40,15 +40,31 @@ internal static partial class Program
     private record ErrorInfo(string Xml, string Error);
     // Position, Size, Transform, CellAnchor are now from SharedXmlToJsonl namespace
 
+    private record CellValue(
+        string? Text = null,
+        double? Number = null,
+        bool? Boolean = null,
+        DateTime? Date = null,
+        string ValueType = "text"  // "text", "number", "boolean", "date"
+    );
+
+    private record CellFormat(
+        int? StyleIndex = null,
+        int? NumFmtId = null,
+        string? NumFmtCode = null,
+        bool? IsDate = null
+    );
+
     private record SheetElement(
         int SheetNumber,
         string SheetName,
         string ElementType,
         int ElementIndex,
         string? CellReference = null,
-        string? Value = null,
+        CellValue? Value = null,
         string? Formula = null,
         string? DataType = null,
+        CellFormat? Format = null,
         int? Row = null,
         int? Column = null,
         Transform? Transform = null,
@@ -68,6 +84,8 @@ internal static partial class Program
     [JsonSerializable(typeof(IReadOnlyList<RelationshipInfo>))]
     [JsonSerializable(typeof(SheetMetadata))]
     [JsonSerializable(typeof(ErrorInfo))]
+    [JsonSerializable(typeof(CellValue))]
+    [JsonSerializable(typeof(CellFormat))]
     [JsonSerializable(typeof(Position))]
     [JsonSerializable(typeof(Size))]
     [JsonSerializable(typeof(CellAnchor))]
@@ -140,11 +158,14 @@ internal static partial class Program
         // Get shared strings for string lookups
         var sharedStrings = ExtractSharedStrings(entries);
 
+        // Get cell styles for format lookups
+        var cellFormats = ExtractCellFormats(entries);
+
         foreach (var (sheetNumber, sheetName) in sheetInfos)
         {
             var filePath = Path.Combine(outputDirectory, $"{baseName}_sheet{sheetNumber}.jsonl");
             var sheetSpecificEntries = FilterEntriesForSheet(entries, sheetNumber);
-            WriteSheetElementsAsJsonLines(filePath, sheetSpecificEntries, sheetNumber, sheetName, sharedStrings);
+            WriteSheetElementsAsJsonLines(filePath, sheetSpecificEntries, sheetNumber, sheetName, sharedStrings, cellFormats);
         }
     }
 
@@ -231,6 +252,107 @@ internal static partial class Program
         }
 
         return sharedStrings;
+    }
+
+    private static IReadOnlyList<CellFormat> ExtractCellFormats(IReadOnlyList<JsonlEntry> entries)
+    {
+        var cellFormats = new List<CellFormat>();
+        var stylesEntry = entries.FirstOrDefault(e => e.PartName == "/xl/styles.xml");
+
+        if (stylesEntry != null)
+        {
+            try
+            {
+                var doc = XDocument.Parse(stylesEntry.Xml);
+                XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+                // Extract number formats (both built-in and custom)
+                var customFormats = new Dictionary<int, string>();
+                var numFmts = doc.Descendants(ns + "numFmts").FirstOrDefault();
+                if (numFmts != null)
+                {
+                    foreach (var numFmt in numFmts.Elements(ns + "numFmt"))
+                    {
+                        var numFmtId = numFmt.Attribute("numFmtId")?.Value;
+                        var formatCode = numFmt.Attribute("formatCode")?.Value;
+                        if (int.TryParse(numFmtId, out var id) && formatCode != null)
+                        {
+                            customFormats[id] = formatCode;
+                        }
+                    }
+                }
+
+                // Extract cell formats (xf elements in cellXfs)
+                var cellXfs = doc.Descendants(ns + "cellXfs").FirstOrDefault();
+                if (cellXfs != null)
+                {
+                    int styleIndex = 0;
+                    foreach (var xf in cellXfs.Elements(ns + "xf"))
+                    {
+                        var numFmtIdAttr = xf.Attribute("numFmtId")?.Value;
+                        int? numFmtId = null;
+                        if (int.TryParse(numFmtIdAttr, out var fmtId))
+                        {
+                            numFmtId = fmtId;
+                        }
+
+                        string? numFmtCode = null;
+                        bool isDate = false;
+
+                        if (numFmtId.HasValue)
+                        {
+                            // Check if it's a custom format
+                            if (customFormats.ContainsKey(numFmtId.Value))
+                            {
+                                numFmtCode = customFormats[numFmtId.Value];
+                            }
+                            // Check for built-in date formats
+                            // Date format IDs: 14-22, 27-36, 45-47, 50-58, 71-81
+                            isDate = IsDateFormatId(numFmtId.Value);
+
+                            // Also check if custom format contains date patterns
+                            if (!isDate && numFmtCode != null)
+                            {
+                                isDate = IsDateFormatCode(numFmtCode);
+                            }
+                        }
+
+                        cellFormats.Add(new CellFormat(
+                            StyleIndex: styleIndex,
+                            NumFmtId: numFmtId,
+                            NumFmtCode: numFmtCode,
+                            IsDate: isDate
+                        ));
+
+                        styleIndex++;
+                    }
+                }
+            }
+            catch
+            {
+                // If parsing fails, return empty list
+            }
+        }
+
+        return cellFormats;
+    }
+
+    private static bool IsDateFormatId(int numFmtId)
+    {
+        // Standard Excel date/time format IDs
+        return (numFmtId >= 14 && numFmtId <= 22) ||
+               (numFmtId >= 27 && numFmtId <= 36) ||
+               (numFmtId >= 45 && numFmtId <= 47) ||
+               (numFmtId >= 50 && numFmtId <= 58) ||
+               (numFmtId >= 71 && numFmtId <= 81);
+    }
+
+    private static bool IsDateFormatCode(string formatCode)
+    {
+        // Check if format code contains date/time patterns
+        var datePatterns = new[] { "yy", "mm", "dd", "hh", "ss", "AM/PM", "A/P", "[h]", "[m]", "[s]" };
+        var lowerCode = formatCode.ToLowerInvariant();
+        return datePatterns.Any(pattern => lowerCode.Contains(pattern.ToLowerInvariant()));
     }
 
     private static IReadOnlyList<JsonlEntry> FilterEntriesForSheet(IReadOnlyList<JsonlEntry> entries, int sheetNumber)
@@ -358,7 +480,7 @@ internal static partial class Program
         return null;
     }
 
-    private static void WriteSheetElementsAsJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries, int sheetNumber, string sheetName, IReadOnlyList<string> sharedStrings)
+    private static void WriteSheetElementsAsJsonLines(string outputPath, IReadOnlyList<JsonlEntry> entries, int sheetNumber, string sheetName, IReadOnlyList<string> sharedStrings, IReadOnlyList<CellFormat> cellFormats)
     {
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))
@@ -379,7 +501,7 @@ internal static partial class Program
                 !entry.PartName.Contains(".rels", StringComparison.OrdinalIgnoreCase))
             {
                 // Parse sheet XML and collect elements
-                var sheetElements = ExtractSheetElements(entry.Xml, sheetNumber, sheetName, sharedStrings);
+                var sheetElements = ExtractSheetElements(entry.Xml, sheetNumber, sheetName, sharedStrings, cellFormats);
                 allElements.AddRange(sheetElements);
             }
             // Check if this is a drawing XML file
@@ -400,7 +522,7 @@ internal static partial class Program
         }
     }
 
-    private static IReadOnlyList<SheetElement> ExtractSheetElements(string xml, int sheetNumber, string sheetName, IReadOnlyList<string> sharedStrings)
+    private static IReadOnlyList<SheetElement> ExtractSheetElements(string xml, int sheetNumber, string sheetName, IReadOnlyList<string> sharedStrings, IReadOnlyList<CellFormat> cellFormats)
     {
         var elements = new List<SheetElement>();
         var elementIndex = 0;
@@ -435,6 +557,7 @@ internal static partial class Program
                 {
                     var cellRef = cell.Attribute("r")?.Value;
                     var cellType = cell.Attribute("t")?.Value; // s = shared string, str = string, b = boolean
+                    var cellStyleAttr = cell.Attribute("s")?.Value; // style index
                     var cellValue = cell.Element(ns + "v")?.Value;
                     var cellFormula = cell.Element(ns + "f")?.Value;
 
@@ -445,33 +568,22 @@ internal static partial class Program
                         colIndex = GetColumnIndex(cellRef);
                     }
 
-                    // Process cell value based on type
-                    string? displayValue = cellValue;
-                    if (cellType == "s" && !string.IsNullOrEmpty(cellValue))
+                    // Get cell format information
+                    CellFormat? cellFormat = null;
+                    if (int.TryParse(cellStyleAttr, out var styleIndex) && styleIndex >= 0 && styleIndex < cellFormats.Count)
                     {
-                        // Shared string reference
-                        if (int.TryParse(cellValue, out var stringIndex) && stringIndex >= 0 && stringIndex < sharedStrings.Count)
-                        {
-                            displayValue = sharedStrings[stringIndex];
-                        }
+                        cellFormat = cellFormats[styleIndex];
                     }
-                    else if (cellType == "b")
+
+                    // Process cell value based on type and format
+                    CellValue? processedValue = null;
+                    if (!string.IsNullOrEmpty(cellValue) || cellType == "str")
                     {
-                        // Boolean
-                        displayValue = cellValue == "1" ? "TRUE" : "FALSE";
-                    }
-                    else if (cellType == "str")
-                    {
-                        // Inline string
-                        var inlineStr = cell.Element(ns + "is")?.Element(ns + "t")?.Value;
-                        if (!string.IsNullOrEmpty(inlineStr))
-                        {
-                            displayValue = inlineStr;
-                        }
+                        processedValue = ProcessCellValue(cellValue, cellType, cellFormat, sharedStrings, cell, ns);
                     }
 
                     // Only add cells with content
-                    if (!string.IsNullOrEmpty(displayValue) || !string.IsNullOrEmpty(cellFormula))
+                    if (processedValue != null || !string.IsNullOrEmpty(cellFormula))
                     {
                         elements.Add(new SheetElement(
                             sheetNumber,
@@ -479,9 +591,10 @@ internal static partial class Program
                             "cell",
                             elementIndex++,
                             CellReference: cellRef,
-                            Value: displayValue,
+                            Value: processedValue,
                             Formula: cellFormula,
                             DataType: cellType,
+                            Format: cellFormat,
                             Row: rowIndex,
                             Column: colIndex
                         ));
@@ -502,6 +615,99 @@ internal static partial class Program
         }
 
         return elements;
+    }
+
+    private static CellValue? ProcessCellValue(string? cellValue, string? cellType, CellFormat? cellFormat, IReadOnlyList<string> sharedStrings, XElement cell, XNamespace ns)
+    {
+        if (cellType == "s" && !string.IsNullOrEmpty(cellValue))
+        {
+            // Shared string reference
+            if (int.TryParse(cellValue, out var stringIndex) && stringIndex >= 0 && stringIndex < sharedStrings.Count)
+            {
+                return new CellValue(Text: sharedStrings[stringIndex], ValueType: "text");
+            }
+        }
+        else if (cellType == "b" && !string.IsNullOrEmpty(cellValue))
+        {
+            // Boolean
+            var boolValue = cellValue == "1";
+            return new CellValue(Boolean: boolValue, Text: boolValue ? "TRUE" : "FALSE", ValueType: "boolean");
+        }
+        else if (cellType == "str")
+        {
+            // Inline string
+            var inlineStr = cell.Element(ns + "is")?.Element(ns + "t")?.Value;
+            if (!string.IsNullOrEmpty(inlineStr))
+            {
+                return new CellValue(Text: inlineStr, ValueType: "text");
+            }
+        }
+        else if (!string.IsNullOrEmpty(cellValue))
+        {
+            // Numeric value (could be number or date)
+            if (double.TryParse(cellValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var numValue))
+            {
+                // Check if it's a date based on format
+                if (cellFormat?.IsDate == true)
+                {
+                    // Convert Excel date serial number to DateTime
+                    var dateTime = ConvertExcelSerialToDateTime(numValue);
+                    if (dateTime.HasValue)
+                    {
+                        return new CellValue(
+                            Date: dateTime.Value,
+                            Text: dateTime.Value.ToString("yyyy-MM-dd'T'HH:mm:ss"),
+                            ValueType: "date"
+                        );
+                    }
+                }
+
+                // Return as number
+                return new CellValue(
+                    Number: numValue,
+                    Text: numValue.ToString(CultureInfo.InvariantCulture),
+                    ValueType: "number"
+                );
+            }
+            else
+            {
+                // If parsing as number fails, treat as text
+                return new CellValue(Text: cellValue, ValueType: "text");
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTime? ConvertExcelSerialToDateTime(double serialDate)
+    {
+        // Excel dates start from 1900-01-01 (serial number 1)
+        // But Excel incorrectly treats 1900 as a leap year, so we need to handle this
+        const int excelBaseYear = 1900;
+        const int dayAdjustment = -2; // Adjustment for Excel's 1900 leap year bug
+
+        if (serialDate < 1)
+        {
+            return null; // Invalid date
+        }
+
+        try
+        {
+            if (serialDate <= 60)
+            {
+                // Before March 1, 1900 (no leap year bug adjustment needed)
+                return new DateTime(excelBaseYear, 1, 1).AddDays(serialDate - 1);
+            }
+            else
+            {
+                // After February 28, 1900 (apply leap year bug adjustment)
+                return new DateTime(excelBaseYear, 1, 1).AddDays(serialDate + dayAdjustment);
+            }
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static int GetColumnIndex(string cellReference)
@@ -928,7 +1134,7 @@ internal static partial class Program
                     sheetName,
                     "table_cell",
                     elementIndex++,
-                    Value: cell.Text,
+                    Value: new CellValue(Text: cell.Text, ValueType: "text"),
                     ShapeId: $"{tableId}_R{cell.Row}C{cell.Col}",
                     ShapeName: $"Cell[{cell.Row},{cell.Col}]",
                     GroupLevel: groupLevel + 1,
