@@ -32,7 +32,7 @@ public class PptxProcessor : IPptxProcessor
     }
 
     // Implementation of IDocumentProcessor.ProcessAsync
-    public async Task<ProcessingResult> ProcessAsync(
+    public async Task<SharedXmlToJsonl.Models.ProcessingResult> ProcessAsync(
         string inputPath,
         string outputDirectory,
         CancellationToken cancellationToken = default)
@@ -43,7 +43,7 @@ public class PptxProcessor : IPptxProcessor
     }
 
     // Implementation of IPptxProcessor.ProcessAsync
-    public async Task<ProcessingResult> ProcessAsync(
+    public async Task<SharedXmlToJsonl.Models.ProcessingResult> ProcessAsync(
         string inputPath,
         string outputDirectory,
         ProcessingOptions options,
@@ -71,17 +71,17 @@ public class PptxProcessor : IPptxProcessor
             await _jsonWriter.WriteJsonLinesAsync(outputPath, entries, cancellationToken);
 
             _logger.LogInformation("Successfully processed {Count} slides", entries.Count);
-            return new ProcessingResult
+            return new SharedXmlToJsonl.Models.ProcessingResult
             {
                 Success = true,
-                ProcessedItems = entries.Count,
+                ItemsProcessed = entries.Count,
                 OutputPath = outputPath
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing PPTX file {Path}", inputPath);
-            return new ProcessingResult
+            return new SharedXmlToJsonl.Models.ProcessingResult
             {
                 Success = false,
                 ErrorMessage = ex.Message

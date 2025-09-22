@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using SharedXmlToJsonl.Configuration;
+using SharedXmlToJsonl.Models;
 
 namespace SharedXmlToJsonl.Interfaces
 {

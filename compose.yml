@@ -7,3 +7,17 @@ services:
       - ./logs:/logs
       - ./scripts:/scripts
     platform: linux/amd64
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./test-results:/app/TestResults
+    platform: linux/amd64
+    environment:
+      - DOTNET_CLI_TELEMETRY_OPTOUT=1
+      - DOTNET_NOLOGO=1
+    command: ["dotnet", "test", "--no-build", "-c", "Release", "--logger:trx", "--results-directory", "/app/TestResults", "--verbosity", "normal"]

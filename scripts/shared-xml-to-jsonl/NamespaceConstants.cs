@@ -13,6 +13,11 @@ public static class NamespaceConstants
     public static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     public static readonly XNamespace XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 
+    // Lowercase aliases for backward compatibility
+    public static readonly XNamespace a = A;
+    public static readonly XNamespace p = P;
+    public static readonly XNamespace r = R;
+
     // Additional drawing namespaces
     public static readonly XNamespace A14 = "http://schemas.microsoft.com/office/drawing/2010/main";
     public static readonly XNamespace A15 = "http://schemas.microsoft.com/office/drawing/2012/main";

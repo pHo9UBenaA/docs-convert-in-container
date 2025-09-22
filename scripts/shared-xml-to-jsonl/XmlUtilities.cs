@@ -224,4 +224,44 @@ public static class XmlUtilities
         }
         return columnLetter;
     }
+
+    /// <summary>
+    /// Gets the position from a transform element
+    /// </summary>
+    public static Position? GetPositionFromTransform(XElement? xfrm, XNamespace a)
+    {
+        if (xfrm == null) return null;
+
+        var off = xfrm.Element(a + "off");
+        if (off != null)
+        {
+            if (long.TryParse(off.Attribute("x")?.Value, out var x) &&
+                long.TryParse(off.Attribute("y")?.Value, out var y))
+            {
+                return new Position(x, y);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the size from a transform element
+    /// </summary>
+    public static Size? GetSizeFromTransform(XElement? xfrm, XNamespace a)
+    {
+        if (xfrm == null) return null;
+
+        var ext = xfrm.Element(a + "ext");
+        if (ext != null)
+        {
+            if (long.TryParse(ext.Attribute("cx")?.Value, out var cx) &&
+                long.TryParse(ext.Attribute("cy")?.Value, out var cy))
+            {
+                return new Size(cx, cy);
+            }
+        }
+
+        return null;
+    }
 }

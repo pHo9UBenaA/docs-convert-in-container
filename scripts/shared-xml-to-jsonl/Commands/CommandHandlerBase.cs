@@ -47,13 +47,13 @@ namespace SharedXmlToJsonl.Commands
                 }
 
                 // 2. Pre-processing
-                await OnBeforeExecuteAsync(options, cancellationToken);
+                await OnBeforeExecuteAsync(options, cancellationToken).ConfigureAwait(false);
 
                 // 3. Main processing (implemented in derived classes)
-                var result = await ExecuteCoreAsync(options, cancellationToken);
+                var result = await ExecuteCoreAsync(options, cancellationToken).ConfigureAwait(false);
 
                 // 4. Post-processing
-                await OnAfterExecuteAsync(options, result, cancellationToken);
+                await OnAfterExecuteAsync(options, result, cancellationToken).ConfigureAwait(false);
 
                 return result;
             }
