@@ -64,12 +64,7 @@ internal static partial class Program
     [JsonSerializable(typeof(LineProperties))]
     private partial class SourceGenerationContext : JsonSerializerContext
     {
-        private static readonly JsonSerializerOptions _options = new()
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            WriteIndented = false,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-        };
+        private static readonly JsonSerializerOptions _options = JsonSerializationHelper.CreateStandardOptions();
 
         public static SourceGenerationContext Custom { get; } = new SourceGenerationContext(_options);
     }
