@@ -73,7 +73,7 @@ public class PptxProcessor : IPptxProcessor
             // Write each slide to a separate file
             foreach (var (slideNumber, slideElements) in slideDataByNumber)
             {
-                var outputPath = Path.Combine(outputDirectory, $"{baseName}_page-{slideNumber}.jsonl");
+                var outputPath = Path.Combine(outputDirectory, $"slide-{slideNumber}.jsonl");
                 await WriteSlideToFile(outputPath, slideElements, cancellationToken);
                 outputPaths.Add(outputPath);
             }

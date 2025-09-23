@@ -73,7 +73,7 @@ public class XlsxProcessor : IXlsxProcessor
             // Write each sheet to a separate file
             foreach (var (sheetNumber, sheetElements) in sheetDataByNumber)
             {
-                var outputPath = Path.Combine(outputDirectory, $"{baseName}_sheet{sheetNumber}.jsonl");
+                var outputPath = Path.Combine(outputDirectory, $"sheet-{sheetNumber}.jsonl");
                 await WriteSheetToFile(outputPath, sheetElements, cancellationToken);
                 outputPaths.Add(outputPath);
             }

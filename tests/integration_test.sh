@@ -39,12 +39,12 @@ docker compose run --rm converter bash generate-batch-and-run.sh "$TMP_DIR/"
 # 3. Check existence of PDF and CSV files
 echo "3. Checking generated files..."
 
-if [ ! -f "$TMP_DIR/sample_csv/sample_sheet1.csv" ]; then
-    error_message "sample_csv/sample_sheet1.csv was not generated"
+if [ ! -f "$TMP_DIR/sample_csv/sheet-1.csv" ]; then
+    error_message "sample_csv/sheet-1.csv was not generated"
     exit 1
 fi
 
-success_message "sample_csv/sample_sheet1.csv was generated"
+success_message "sample_csv/sheet-1.csv was generated"
 
 if [ ! -f "$TMP_DIR/sample.pdf" ]; then
     error_message "sample.pdf was not generated"
@@ -54,13 +54,13 @@ fi
 success_message "sample.pdf was generated"
 
 # 4. Check CSV file contents
-echo "4. Checking contents of sample_csv/sample_sheet1.csv..."
+echo "4. Checking contents of sample_csv/sheet-1.csv..."
 
 expected_content=$(cat "$TMP_DIR/expected.csv")
-actual_content=$(cat "$TMP_DIR/sample_csv/sample_sheet1.csv")
+actual_content=$(cat "$TMP_DIR/sample_csv/sheet-1.csv")
 
 if [ "$actual_content" != "$expected_content" ]; then
-    error_message "sample_sheet1.csv content differs from expected"
+    error_message "sheet-1.csv content differs from expected"
     echo "Expected:"
     echo "$expected_content"
     echo "Actual:"
@@ -68,50 +68,50 @@ if [ "$actual_content" != "$expected_content" ]; then
     exit 1
 fi
 
-success_message "sample_csv/sample_sheet1.csv output is as expected"
+success_message "sample_csv/sheet-1.csv output is as expected"
 
 # 5. Check PNG file contents
-echo "5. Checking contents of sample_png/sample-1.png..."
+echo "5. Checking contents of sample_png/slide-1.png..."
 
 expected_content=$(sha256sum "$TMP_DIR/expected.png" | awk '{print $1}')
-actual_content=$(sha256sum "$TMP_DIR/sample_png/sample-1.png" | awk '{print $1}')
+actual_content=$(sha256sum "$TMP_DIR/sample_png/slide-1.png" | awk '{print $1}')
 
 if [ "$actual_content" != "$expected_content" ]; then
-    error_message "sample-1.png content differs from expected"
+    error_message "slide-1.png content differs from expected"
     exit 1
 fi
 
-success_message "sample_png/sample-1.png output is as expected"
+success_message "sample_png/slide-1.png output is as expected"
 
 # 6. Check PPTX JSONL outputs
 echo "6. Checking contents of sample_jsonl/..."
 
 expected_pptx_jsonl_hash=$(sha256sum "$TMP_DIR/expected_pptx-1.jsonl" | awk '{print $1}')
-actual_pptx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_page-1.jsonl" | awk '{print $1}')
+actual_pptx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/slide-1.jsonl" | awk '{print $1}')
 
 if [ "$actual_pptx_jsonl_hash" != "$expected_pptx_jsonl_hash" ]; then
-    error_message "sample_page-1.jsonl content differs from expected"
+    error_message "slide-1.jsonl content differs from expected"
     echo "Expected hash: $expected_pptx_jsonl_hash"
     echo "Actual hash: $actual_pptx_jsonl_hash"
     exit 1
 fi
 
-success_message "sample_jsonl/sample_page-1.jsonl output is as expected"
+success_message "sample_jsonl/slide-1.jsonl output is as expected"
 
 # 7. Check XLSX JSONL outputs
 echo "7. Checking XLSX JSONL outputs..."
 
 expected_xlsx_jsonl_hash=$(sha256sum "$TMP_DIR/expected_xlsx-1.jsonl" | awk '{print $1}')
-actual_xlsx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sample_sheet1.jsonl" | awk '{print $1}')
+actual_xlsx_jsonl_hash=$(sha256sum "$TMP_DIR/sample_jsonl/sheet-1.jsonl" | awk '{print $1}')
 
 if [ "$actual_xlsx_jsonl_hash" != "$expected_xlsx_jsonl_hash" ]; then
-    error_message "sample_sheet1.jsonl content differs from expected"
+    error_message "sheet-1.jsonl content differs from expected"
     echo "Expected hash: $expected_xlsx_jsonl_hash"
     echo "Actual hash: $actual_xlsx_jsonl_hash"
     exit 1
 fi
 
-success_message "sample_jsonl/sample_sheet1.jsonl output is as expected"
+success_message "sample_jsonl/sheet-1.jsonl output is as expected"
 
 echo ""
 success_message "All tests passed successfully!"

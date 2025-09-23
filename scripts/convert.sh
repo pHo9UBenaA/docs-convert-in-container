@@ -81,8 +81,13 @@ parse_file_path() {
 # Function to convert PDF to PNG images
 convert_pdf_to_png_images() {
     local pdf_path="$1"
+    local prefix="$2"  # Optional prefix parameter (e.g., "slide" or "page")
+
+    # Use provided prefix or default to BASENAME for backward compatibility
+    local output_prefix="${prefix:-${BASENAME}}"
+
     echo "Converting PDF to PNG images..."
-    pdftoppm -png -r "${PNG_RESOLUTION_DPI}" "$pdf_path" "$OUTPUT_DIR/${BASENAME}"
+    pdftoppm -png -r "${PNG_RESOLUTION_DPI}" "$pdf_path" "$OUTPUT_DIR/${output_prefix}"
 }
 
 # Function to check if PDF file exists
@@ -124,8 +129,8 @@ convert_pptx_to_png_via_pdf() {
         exit "${EXIT_CODE_ERROR}"
     fi
 
-    # Convert PDF to PNG
-    convert_pdf_to_png_images "$PDF_FILE"
+    # Convert PDF to PNG with "slide" prefix for PPTX files
+    convert_pdf_to_png_images "$PDF_FILE" "slide"
 }
 
 # Function to convert PPTX package XML into JSONL
@@ -150,7 +155,19 @@ convert_xlsx_to_jsonl() {
 convert_excel_sheets_to_csv_files() {
     local excel_path="$1"
     echo "Converting Excel sheets to individual CSV files..."
-    ssconvert -S "$excel_path" "$CSV_OUTPUT_DIR/${BASENAME}_sheet%s.csv"
+    # ssconvert uses %s for sheet number, we'll rename afterward to add hyphen
+    ssconvert -S "$excel_path" "$CSV_OUTPUT_DIR/sheet%s.csv"
+
+    # Rename files to use sheet-N format
+    for file in "$CSV_OUTPUT_DIR"/sheet*.csv; do
+        if [ -f "$file" ]; then
+            # Extract the sheet number and rename
+            base=$(basename "$file")
+            num="${base#sheet}"
+            num="${num%.csv}"
+            mv "$file" "$CSV_OUTPUT_DIR/sheet-${num}.csv"
+        fi
+    done
 }
 
 # Function to count files by pattern
@@ -256,8 +273,8 @@ case "$EXTENSION" in
         ;;
 
     "${SUPPORTED_FORMAT_PDF}")
-        # Convert PDF directly to PNG
-        convert_pdf_to_png_images "$FULL_PATH"
+        # Convert PDF directly to PNG with "page" prefix
+        convert_pdf_to_png_images "$FULL_PATH" "page"
         # Display results
         display_png_conversion_results_with_limit
         ;;
