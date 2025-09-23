@@ -17,11 +17,18 @@ docs/
 │   ├── presentation-1.png
 │   ├── presentation-2.png
 │   └── presentation-3.png
+├── presentation_jsonl/     # presentation.pptxから生成
+│   ├── slide-1.jsonl
+│   ├── slide-2.jsonl
+│   └── slide-3.jsonl
 │
 ├── data.xlsx
 ├── data_csv/               # data.xlsxから生成
 │   ├── data_sheet1.csv
 │   └── data_sheet2.csv
+├── data_jsonl/             # data.xlsxから生成
+│   ├── sheet1.jsonl
+│   └── sheet2.jsonl
 │
 ├── project1/
 │   ├── report.pptx
@@ -29,10 +36,15 @@ docs/
 │   ├── report_png/         # report.pptxから生成
 │   │   ├── report-1.png
 │   │   └── report-2.png
+│   ├── report_jsonl/       # report.pptxから生成
+│   │   ├── slide-1.jsonl
+│   │   └── slide-2.jsonl
 │   │
-│   └── analysis.xlsx
-│   └── analysis_csv/       # analysis.xlsxから生成
-│       └── analysis_sheet1.csv
+│   ├── analysis.xlsx
+│   ├── analysis_csv/       # analysis.xlsxから生成
+│   │   └── analysis_sheet1.csv
+│   └── analysis_jsonl/     # analysis.xlsxから生成
+│       └── sheet1.jsonl
 │
 └── archive/
     ├── old_document.pdf
@@ -44,11 +56,14 @@ docs/
 </details>
 
 ## サポートされている拡張子と変換形式
-- `pdf`: png（1ページ毎）
+- `pdf`: PNG画像（1ページ毎）
 - `pptx`:
-  - png（1スライド毎
-  - jsonl（1スライド毎）
-- `xlsx`: csv（1シート毎）
+  - PDF（全体を1ファイル）
+  - PNG画像（1スライド毎）
+  - JSONL（スライド毎の構造化データ）
+- `xlsx`:
+  - CSV（1シート毎）
+  - JSONL（シート毎の構造化データ）
 
 ## 使い方
 
@@ -64,7 +79,7 @@ docs/
 
 3. Dockerコンテナをビルド
    ```bash
-   docker compose up -d --build
+   docker compose build converter 
    ```
    ※LibreOfficeに依存しているため時間がかかります
 
