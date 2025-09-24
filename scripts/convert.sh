@@ -201,7 +201,7 @@ convert_excel_to_csv_sheet_by_sheet() {
 display_png_conversion_results_with_limit() {
     local png_count
     png_count=$(count_files_by_pattern "$OUTPUT_DIR/*.png")
-    
+
     if [ "$png_count" -gt 0 ]; then
         echo "Success: Created $png_count PNG files in ${OUTPUT_DIR#${DOCS_ROOT}/}"
         echo "Files created:"
@@ -211,6 +211,20 @@ display_png_conversion_results_with_limit() {
         fi
     else
         echo "Error: No PNG files were created"
+        exit "${EXIT_CODE_ERROR}"
+    fi
+}
+
+# Function to display JSONL conversion results
+display_jsonl_conversion_results() {
+    local jsonl_dir="$1"
+    local jsonl_count
+
+    if [ -d "$jsonl_dir" ]; then
+        jsonl_count=$(count_files_by_pattern "$jsonl_dir/*.jsonl")
+        echo "Success: Created $jsonl_count JSONL files in ${jsonl_dir#${DOCS_ROOT}/}"
+    else
+        echo "Error: JSONL directory was not created"
         exit "${EXIT_CODE_ERROR}"
     fi
 }
@@ -249,27 +263,15 @@ case "$EXTENSION" in
         convert_pptx_to_jsonl "$FULL_PATH" "$JSONL_OUTPUT_DIR"
         # Display results
         display_png_conversion_results_with_limit
-        if [ -d "$JSONL_OUTPUT_DIR" ]; then
-            jsonl_count=$(count_files_by_pattern "$JSONL_OUTPUT_DIR/*.jsonl")
-            echo "Success: Created $jsonl_count JSONL files in ${JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
-        else
-            echo "Error: JSONL directory was not created"
-            exit "${EXIT_CODE_ERROR}"
-        fi
+        display_jsonl_conversion_results "$JSONL_OUTPUT_DIR"
         ;;
 
     "${SUPPORTED_FORMAT_XLSX}")
         # Convert Excel to CSV and JSONL
         convert_excel_to_csv_sheet_by_sheet "$FULL_PATH"
         convert_xlsx_to_jsonl "$FULL_PATH" "$XLSX_JSONL_OUTPUT_DIR"
-        # JSONL results already displayed by CSV function
-        if [ -d "$XLSX_JSONL_OUTPUT_DIR" ]; then
-            jsonl_count=$(count_files_by_pattern "$XLSX_JSONL_OUTPUT_DIR/*.jsonl")
-            echo "Success: Created $jsonl_count JSONL files in ${XLSX_JSONL_OUTPUT_DIR#${DOCS_ROOT}/}"
-        else
-            echo "Error: JSONL directory was not created"
-            exit "${EXIT_CODE_ERROR}"
-        fi
+        # Display results
+        display_jsonl_conversion_results "$XLSX_JSONL_OUTPUT_DIR"
         ;;
 
     "${SUPPORTED_FORMAT_PDF}")
