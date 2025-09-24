@@ -1,0 +1,96 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Packaging;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+
+namespace SharedXmlToJsonl.Services;
+
+public interface IPackageReader
+{
+    Task<Package> OpenPackageAsync(string path, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PackagePart>> GetPartsAsync(Package package, CancellationToken cancellationToken = default);
+    Task<PackagePart?> GetPartByTypeAsync(Package package, string contentType, CancellationToken cancellationToken = default);
+}
+
+public class PackageReader : IPackageReader
+{
+    private readonly ILogger<PackageReader> _logger;
+
+    public PackageReader(ILogger<PackageReader> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public async Task<Package> OpenPackageAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(path))
+            throw new ArgumentNullException(nameof(path));
+
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"File not found: {path}", path);
+
+        _logger.LogDebug("Opening package: {Path}", path);
+
+        try
+        {
+            return await Task.Run(() =>
+                Package.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error opening package: {Path}", path);
+            throw;
+        }
+    }
+
+    public async Task<IReadOnlyList<PackagePart>> GetPartsAsync(
+        Package package,
+        CancellationToken cancellationToken = default)
+    {
+        if (package == null)
+            throw new ArgumentNullException(nameof(package));
+
+        try
+        {
+            return await Task.Run(() =>
+                package.GetParts().ToList(),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting package parts");
+            throw;
+        }
+    }
+
+    public async Task<PackagePart?> GetPartByTypeAsync(
+        Package package,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        if (package == null)
+            throw new ArgumentNullException(nameof(package));
+
+        if (string.IsNullOrEmpty(contentType))
+            throw new ArgumentNullException(nameof(contentType));
+
+        try
+        {
+            return await Task.Run(() =>
+                package.GetParts().FirstOrDefault(p => p.ContentType == contentType),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting package part by type: {ContentType}", contentType);
+            throw;
+        }
+    }
+}

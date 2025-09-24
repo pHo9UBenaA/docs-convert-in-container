@@ -29,29 +29,48 @@ if [ ! -d "$TARGET_DIR" ]; then
 fi
 
 # Clear previous batch.txt if exists
-> /app/batch.txt
+> /scripts/batch.txt
 
-# Extensions to process
-EXTENSIONS=("pptx" "pdf" "xlsx")
+# Collect all PPTX files to identify generated PDFs
+declare -A pptx_base_paths
+while IFS= read -r -d '' pptx_file; do
+    base_path="${pptx_file%.pptx}"
+    pptx_base_paths["$base_path"]=1
+done < <(find "$TARGET_DIR" -type f -name "*.pptx" -print0)
 
-# Generate commands for each extension
-for ext in "${EXTENSIONS[@]}"; do
-    log "Generating commands for .$ext files..."
-    
-    # Find all files with the extension and generate commands
-    find "$TARGET_DIR" -type f -name "*.$ext" | while read -r file; do
-        # Remove /docs/ prefix to make it relative
+# Process each file type
+declare -A file_counts
+for ext in pptx pdf xlsx; do
+    count=0
+    skipped=0
+
+    while IFS= read -r -d '' file; do
+        # Skip PDFs that were generated from PPTX files
+        if [ "$ext" = "pdf" ]; then
+            base_path="${file%.pdf}"
+            if [ "${pptx_base_paths[$base_path]}" = "1" ]; then
+                log "Skipping $file (generated from PPTX)"
+                ((skipped++))
+                continue
+            fi
+        fi
+
+        # Add to batch.txt
         relative_path="${file#/docs/}"
-        echo "bash /app/convert.sh \"$relative_path\";" >> /app/batch.txt
-    done
-    
-    # Count files found
-    file_count=$(find "$TARGET_DIR" -type f -name "*.$ext" | wc -l)
-    log "Found $file_count .$ext files"
+        echo "bash /scripts/convert.sh \"$relative_path\";" >> /scripts/batch.txt
+        ((count++))
+    done < <(find "$TARGET_DIR" -type f -name "*.$ext" -print0)
+
+    # Log results
+    if [ "$ext" = "pdf" ] && [ "$skipped" -gt 0 ]; then
+        log "Found $count .$ext files (excluded $skipped PPTX-generated PDFs)"
+    else
+        log "Found $count .$ext files"
+    fi
 done
 
 # Total commands generated
-total_commands=$(grep -c "bash /app/convert.sh" /app/batch.txt 2>/dev/null || echo "0")
+total_commands=$(grep -c "bash /scripts/convert.sh" /scripts/batch.txt 2>/dev/null || echo "0")
 log "Total commands generated: $total_commands"
 
 if [ "$total_commands" -eq 0 ]; then
@@ -61,11 +80,11 @@ fi
 
 # Display batch.txt content
 log "Generated batch.txt content:"
-cat /app/batch.txt | tee -a "$SCRIPT_LOG"
+cat /scripts/batch.txt | tee -a "$SCRIPT_LOG"
 
 # Execute batch.sh
 log "Starting batch.sh execution..."
-bash /app/batch.sh
+bash /scripts/batch.sh
 
 # Check exit status
 if [ $? -eq 0 ]; then

@@ -9,6 +9,7 @@ readonly DOCS_ROOT="/docs"
 readonly PNG_SUFFIX="_png"
 readonly CSV_SUFFIX="_csv"
 readonly PDF_EXTENSION="pdf"
+readonly JSONL_EXTENSION="jsonl"
 readonly PNG_RESOLUTION_DPI=300
 readonly CONVERSION_WAIT_SECONDS=2
 readonly MAX_DISPLAY_FILES=10
@@ -47,10 +48,10 @@ create_directory_if_not_exists() {
 # Function to normalize and parse file paths
 parse_file_path() {
     local input="$1"
-    
+
     # Remove 'docs/' prefix if present
     [[ "$input" == docs/* ]] && input="${input#docs/}"
-    
+
     # Create absolute path
     if [[ "$input" == /* ]]; then
         # Already an absolute path
@@ -59,27 +60,48 @@ parse_file_path() {
         # Relative path, prepend /docs/
         FULL_PATH="/docs/$input"
     fi
-    
+
     # Extract filename components
     local filename=$(basename "$FULL_PATH")
     BASENAME="${filename%.*}"
     EXTENSION="${filename##*.}"
-    
+
     # Get directory path
     local dir=$(dirname "$FULL_PATH")
-    
-    # Set output paths
-    OUTPUT_DIR="${dir}/${BASENAME}${PNG_SUFFIX}"
-    CSV_OUTPUT_DIR="${dir}/${BASENAME}${CSV_SUFFIX}"
-    PDF_FILE="${dir}/${BASENAME}.${PDF_EXTENSION}"
-    PDF_OUTDIR="${dir}"
+
+    # Set output paths based on file type
+    # Only set variables that are needed for each specific format
+    case "$EXTENSION" in
+        "${SUPPORTED_FORMAT_PPTX}")
+            OUTPUT_DIR="${dir}/${BASENAME}${PNG_SUFFIX}"
+            PDF_FILE="${dir}/${BASENAME}.${PDF_EXTENSION}"
+            PDF_OUTDIR="${dir}"
+            JSONL_OUTPUT_DIR="${dir}/${BASENAME}_jsonl"
+            ;;
+        "${SUPPORTED_FORMAT_XLSX}")
+            CSV_OUTPUT_DIR="${dir}/${BASENAME}${CSV_SUFFIX}"
+            XLSX_JSONL_OUTPUT_DIR="${dir}/${BASENAME}_jsonl"
+            ;;
+        "${SUPPORTED_FORMAT_PDF}")
+            OUTPUT_DIR="${dir}/${BASENAME}${PNG_SUFFIX}"
+            ;;
+        *)
+            # For unsupported formats, just set basic paths
+            OUTPUT_DIR="${dir}/${BASENAME}${PNG_SUFFIX}"
+            ;;
+    esac
 }
 
 # Function to convert PDF to PNG images
 convert_pdf_to_png_images() {
     local pdf_path="$1"
+    local prefix="$2"  # Optional prefix parameter (e.g., "slide" or "page")
+
+    # Use provided prefix or default to BASENAME for backward compatibility
+    local output_prefix="${prefix:-${BASENAME}}"
+
     echo "Converting PDF to PNG images..."
-    pdftoppm -png -r "${PNG_RESOLUTION_DPI}" "$pdf_path" "$OUTPUT_DIR/${BASENAME}"
+    pdftoppm -png -r "${PNG_RESOLUTION_DPI}" "$pdf_path" "$OUTPUT_DIR/${output_prefix}"
 }
 
 # Function to check if PDF file exists
@@ -121,15 +143,34 @@ convert_pptx_to_png_via_pdf() {
         exit "${EXIT_CODE_ERROR}"
     fi
 
-    # Convert PDF to PNG
-    convert_pdf_to_png_images "$PDF_FILE"
+    # Convert PDF to PNG with "slide" prefix for PPTX files
+    convert_pdf_to_png_images "$PDF_FILE" "slide"
+}
+
+# Function to convert PPTX package XML into JSONL
+convert_pptx_to_jsonl() {
+    local pptx_path="$1"
+    local jsonl_output_dir="$2"
+
+    echo "Extracting PPTX XML to JSONL..."
+    pptx-xml-to-jsonl "$pptx_path" "$jsonl_output_dir"
+}
+
+# Function to convert XLSX package XML into JSONL
+convert_xlsx_to_jsonl() {
+    local xlsx_path="$1"
+    local jsonl_output_dir="$2"
+
+    echo "Extracting XLSX XML to JSONL..."
+    xlsx-xml-to-jsonl "$xlsx_path" "$jsonl_output_dir"
 }
 
 # Function to convert Excel sheets to CSV files
 convert_excel_sheets_to_csv_files() {
     local excel_path="$1"
     echo "Converting Excel sheets to individual CSV files..."
-    ssconvert -S "$excel_path" "$CSV_OUTPUT_DIR/${BASENAME}_sheet%s.csv"
+    # ssconvert uses %s for sheet name, directly add hyphen for consistent naming
+    ssconvert -S "$excel_path" "$CSV_OUTPUT_DIR/sheet-%s.csv"
 }
 
 # Function to count files by pattern
@@ -157,14 +198,13 @@ convert_excel_to_csv_sheet_by_sheet() {
 
     # Count and display results
     display_csv_conversion_results
-    exit "${EXIT_CODE_SUCCESS}"
 }
 
 # Function to display PNG conversion results with file limit
 display_png_conversion_results_with_limit() {
     local png_count
     png_count=$(count_files_by_pattern "$OUTPUT_DIR/*.png")
-    
+
     if [ "$png_count" -gt 0 ]; then
         echo "Success: Created $png_count PNG files in ${OUTPUT_DIR#${DOCS_ROOT}/}"
         echo "Files created:"
@@ -174,6 +214,20 @@ display_png_conversion_results_with_limit() {
         fi
     else
         echo "Error: No PNG files were created"
+        exit "${EXIT_CODE_ERROR}"
+    fi
+}
+
+# Function to display JSONL conversion results
+display_jsonl_conversion_results() {
+    local jsonl_dir="$1"
+    local jsonl_count
+
+    if [ -d "$jsonl_dir" ]; then
+        jsonl_count=$(count_files_by_pattern "$jsonl_dir/*.jsonl")
+        echo "Success: Created $jsonl_count JSONL files in ${jsonl_dir#${DOCS_ROOT}/}"
+    else
+        echo "Error: JSONL directory was not created"
         exit "${EXIT_CODE_ERROR}"
     fi
 }
@@ -200,8 +254,10 @@ if ! is_file_exists "$FULL_PATH"; then
     exit "${EXIT_CODE_ERROR}"
 fi
 
-# Create output directory
-create_directory_if_not_exists "$OUTPUT_DIR"
+# Create output directory only if not XLSX (XLSX doesn't need PNG directory)
+if [ "$EXTENSION" != "${SUPPORTED_FORMAT_XLSX}" ]; then
+    create_directory_if_not_exists "$OUTPUT_DIR"
+fi
 
 display_conversion_type_message "$EXTENSION"
 
@@ -209,16 +265,25 @@ case "$EXTENSION" in
     "${SUPPORTED_FORMAT_PPTX}")
         # Convert PPTX to PNG
         convert_pptx_to_png_via_pdf "$FULL_PATH"
+        convert_pptx_to_jsonl "$FULL_PATH" "$JSONL_OUTPUT_DIR"
+        # Display results
+        display_png_conversion_results_with_limit
+        display_jsonl_conversion_results "$JSONL_OUTPUT_DIR"
         ;;
 
     "${SUPPORTED_FORMAT_XLSX}")
-        # Convert Excel to CSV
+        # Convert Excel to CSV and JSONL
         convert_excel_to_csv_sheet_by_sheet "$FULL_PATH"
+        convert_xlsx_to_jsonl "$FULL_PATH" "$XLSX_JSONL_OUTPUT_DIR"
+        # Display results
+        display_jsonl_conversion_results "$XLSX_JSONL_OUTPUT_DIR"
         ;;
 
     "${SUPPORTED_FORMAT_PDF}")
-        # Convert PDF directly to PNG
-        convert_pdf_to_png_images "$FULL_PATH"
+        # Convert PDF directly to PNG with "page" prefix
+        convert_pdf_to_png_images "$FULL_PATH" "page"
+        # Display results
+        display_png_conversion_results_with_limit
         ;;
 
     *)
@@ -227,6 +292,3 @@ case "$EXTENSION" in
         exit "${EXIT_CODE_ERROR}"
         ;;
 esac
-
-# Display results
-display_png_conversion_results_with_limit
