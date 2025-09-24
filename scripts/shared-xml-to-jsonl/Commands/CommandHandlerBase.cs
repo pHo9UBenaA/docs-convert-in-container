@@ -24,8 +24,10 @@ namespace SharedXmlToJsonl.Commands
             ILogger<CommandHandlerBase<TOptions>> logger,
             IServiceProvider serviceProvider)
         {
-            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentNullException.ThrowIfNull(logger);
+            Logger = logger;
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ServiceProvider = serviceProvider;
         }
 
         /// <summary>

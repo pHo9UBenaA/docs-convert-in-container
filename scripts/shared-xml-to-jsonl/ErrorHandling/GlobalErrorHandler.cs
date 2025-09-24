@@ -16,14 +16,14 @@ public class GlobalErrorHandler : IGlobalErrorHandler
         ILogger<GlobalErrorHandler> logger,
         IResourceService? resourceService = null)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
         _resourceService = resourceService;
     }
 
     public async Task<int> HandleErrorAsync(Exception exception, CancellationToken cancellationToken = default)
     {
-        if (exception == null)
-            throw new ArgumentNullException(nameof(exception));
+        ArgumentNullException.ThrowIfNull(exception);
 
         await Task.CompletedTask; // Ensure async context
 
@@ -80,8 +80,7 @@ public class GlobalErrorHandler : IGlobalErrorHandler
 
     public void LogError(Exception exception, string context)
     {
-        if (exception == null)
-            throw new ArgumentNullException(nameof(exception));
+        ArgumentNullException.ThrowIfNull(exception);
 
         _logger.LogError(exception, "Error in {Context}: {Message}",
             context ?? "Unknown",

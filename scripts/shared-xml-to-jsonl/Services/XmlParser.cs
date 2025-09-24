@@ -29,7 +29,8 @@ public class XmlParser : IXmlParser
 
     public XmlParser(ILogger<XmlParser> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<XDocument> ParseAsync(
@@ -54,8 +55,7 @@ public class XmlParser : IXmlParser
         Stream stream,
         CancellationToken cancellationToken = default)
     {
-        if (stream == null)
-            throw new ArgumentNullException(nameof(stream));
+        ArgumentNullException.ThrowIfNull(stream);
 
         try
         {

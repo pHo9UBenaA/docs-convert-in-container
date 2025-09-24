@@ -18,8 +18,10 @@ public class ParallelProcessor : IParallelProcessor
         ILogger<ParallelProcessor> logger,
         IOptions<ProcessingOptions> options)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(options);
+        _logger = logger;
+        _options = options.Value;
     }
 
     public async Task ProcessBatchAsync<T>(
@@ -27,8 +29,8 @@ public class ParallelProcessor : IParallelProcessor
         Func<T, CancellationToken, Task> processItem,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
 
         var itemList = items.ToList();
         if (itemList.Count == 0) return;
@@ -67,9 +69,9 @@ public class ParallelProcessor : IParallelProcessor
         Action<TResult> resultHandler,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
-        if (resultHandler == null) throw new ArgumentNullException(nameof(resultHandler));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
+        ArgumentNullException.ThrowIfNull(resultHandler);
 
         var itemList = items.ToList();
         if (itemList.Count == 0) return;
@@ -112,8 +114,8 @@ public class ParallelProcessor : IParallelProcessor
         Func<T, CancellationToken, Task<TResult>> processItem,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
 
         var itemList = items.ToList();
         if (itemList.Count == 0) return Array.Empty<TResult>();

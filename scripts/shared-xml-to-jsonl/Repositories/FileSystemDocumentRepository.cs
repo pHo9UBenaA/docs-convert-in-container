@@ -15,7 +15,8 @@ public class FileSystemDocumentRepository : IDocumentRepository
 
     public FileSystemDocumentRepository(ILogger<FileSystemDocumentRepository> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
@@ -120,8 +121,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         if (string.IsNullOrEmpty(path))
             throw new ArgumentNullException(nameof(path));
 
-        if (content == null)
-            throw new ArgumentNullException(nameof(content));
+        ArgumentNullException.ThrowIfNull(content);
 
         _logger.LogDebug("Saving document to: {Path}", path);
 

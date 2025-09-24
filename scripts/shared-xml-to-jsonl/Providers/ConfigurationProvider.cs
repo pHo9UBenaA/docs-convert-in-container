@@ -18,8 +18,10 @@ public class ConfigurationProvider : IConfigurationProvider
         IConfiguration configuration,
         ILogger<ConfigurationProvider> logger)
     {
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(configuration);
+        _configuration = configuration;
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public T GetConfiguration<T>(string sectionName) where T : class, new()
@@ -59,8 +61,7 @@ public class ConfigurationProvider : IConfigurationProvider
 
     public ValidationResult ValidateConfiguration<T>(T configuration) where T : class
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         var validationContext = new ValidationContext(configuration);
         var validationResults = new List<ValidationResult>();
@@ -83,8 +84,7 @@ public class ConfigurationProvider : IConfigurationProvider
 
     public void BindConfiguration<T>(T configuration, string sectionName) where T : class
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrEmpty(sectionName))
             throw new ArgumentNullException(nameof(sectionName));

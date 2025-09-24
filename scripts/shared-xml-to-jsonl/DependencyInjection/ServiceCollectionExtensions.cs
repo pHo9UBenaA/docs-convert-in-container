@@ -20,11 +20,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        if (services == null)
-            throw new ArgumentNullException(nameof(services));
-
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
 
         // Configuration
         services.Configure<ProcessingOptions>(
@@ -65,8 +62,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddPptxProcessing(
         this IServiceCollection services)
     {
-        if (services == null)
-            throw new ArgumentNullException(nameof(services));
+        ArgumentNullException.ThrowIfNull(services);
 
         // Register PPTX-specific processors and commands
         // These will be registered in the PPTX project's Program.cs
@@ -76,8 +72,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddXlsxProcessing(
         this IServiceCollection services)
     {
-        if (services == null)
-            throw new ArgumentNullException(nameof(services));
+        ArgumentNullException.ThrowIfNull(services);
 
         // Register XLSX-specific processors and commands
         // These will be registered in the XLSX project's Program.cs

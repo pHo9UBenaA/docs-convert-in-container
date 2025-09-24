@@ -25,7 +25,8 @@ public class JsonWriter : IJsonWriter
 
     public JsonWriter(ILogger<JsonWriter> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task WriteJsonLineAsync<T>(
@@ -33,11 +34,9 @@ public class JsonWriter : IJsonWriter
         T obj,
         CancellationToken cancellationToken = default)
     {
-        if (writer == null)
-            throw new ArgumentNullException(nameof(writer));
+        ArgumentNullException.ThrowIfNull(writer);
 
-        if (obj == null)
-            throw new ArgumentNullException(nameof(obj));
+        ArgumentNullException.ThrowIfNull(obj);
 
         try
         {
@@ -71,8 +70,7 @@ public class JsonWriter : IJsonWriter
         if (string.IsNullOrEmpty(filePath))
             throw new ArgumentNullException(nameof(filePath));
 
-        if (objects == null)
-            throw new ArgumentNullException(nameof(objects));
+        ArgumentNullException.ThrowIfNull(objects);
 
         _logger.LogDebug("Writing JSON lines to {FilePath}", filePath);
 
@@ -103,7 +101,7 @@ public class JsonWriter : IJsonWriter
                 count++;
             }
 
-            await writer.FlushAsync().ConfigureAwait(false);
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Successfully wrote {Count} JSON lines to {FilePath}", count, filePath);
         }
         catch (OperationCanceledException)

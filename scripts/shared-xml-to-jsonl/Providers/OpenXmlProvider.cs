@@ -16,7 +16,8 @@ public class OpenXmlProvider : IOpenXmlProvider
 
     public OpenXmlProvider(ILogger<OpenXmlProvider> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<Package> OpenPackageAsync(
@@ -27,8 +28,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         if (string.IsNullOrEmpty(path))
             throw new ArgumentNullException(nameof(path));
 
-        if (settings == null)
-            throw new ArgumentNullException(nameof(settings));
+        ArgumentNullException.ThrowIfNull(settings);
 
         if (!File.Exists(path))
             throw new FileNotFoundException($"Package file not found: {path}", path);
@@ -54,8 +54,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         string partUri,
         CancellationToken cancellationToken = default)
     {
-        if (package == null)
-            throw new ArgumentNullException(nameof(package));
+        ArgumentNullException.ThrowIfNull(package);
 
         if (string.IsNullOrEmpty(partUri))
             throw new ArgumentNullException(nameof(partUri));
@@ -79,8 +78,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         PackagePart part,
         CancellationToken cancellationToken = default)
     {
-        if (part == null)
-            throw new ArgumentNullException(nameof(part));
+        ArgumentNullException.ThrowIfNull(part);
 
         try
         {
@@ -99,8 +97,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         PackagePart part,
         CancellationToken cancellationToken = default)
     {
-        if (part == null)
-            throw new ArgumentNullException(nameof(part));
+        ArgumentNullException.ThrowIfNull(part);
 
         try
         {
@@ -118,14 +115,13 @@ public class OpenXmlProvider : IOpenXmlProvider
         PackagePart part,
         CancellationToken cancellationToken = default)
     {
-        if (part == null)
-            throw new ArgumentNullException(nameof(part));
+        ArgumentNullException.ThrowIfNull(part);
 
         try
         {
             await using var stream = await GetPartStreamAsync(part, cancellationToken).ConfigureAwait(false);
             using var reader = new StreamReader(stream, Encoding.UTF8);
-            return await reader.ReadToEndAsync().ConfigureAwait(false);
+            return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

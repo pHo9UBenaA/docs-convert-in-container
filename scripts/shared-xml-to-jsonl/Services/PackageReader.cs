@@ -22,7 +22,8 @@ public class PackageReader : IPackageReader
 
     public PackageReader(ILogger<PackageReader> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<Package> OpenPackageAsync(
@@ -54,8 +55,7 @@ public class PackageReader : IPackageReader
         Package package,
         CancellationToken cancellationToken = default)
     {
-        if (package == null)
-            throw new ArgumentNullException(nameof(package));
+        ArgumentNullException.ThrowIfNull(package);
 
         try
         {
@@ -75,8 +75,7 @@ public class PackageReader : IPackageReader
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        if (package == null)
-            throw new ArgumentNullException(nameof(package));
+        ArgumentNullException.ThrowIfNull(package);
 
         if (string.IsNullOrEmpty(contentType))
             throw new ArgumentNullException(nameof(contentType));
