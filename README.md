@@ -97,14 +97,28 @@ docs/
 bash tests/integration_test.sh
 ```
 
-### Lint / Format
+### Lint & Format
+
+(TODO)
 
 ```bash
+docker compose run --rm linter bash -lc '
+set -euo pipefail
+DIRS=("pptx-xml-to-jsonl" "xlsx-xml-to-jsonl" "shared-xml-to-jsonl")
+
 # Lint
-docker compose run --rm linter bash -c "dotnet tool restore && for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Formatting \$dir...\"; cd /scripts/\$dir && dotnet format; cd /scripts; done"
+for dir in "${DIRS[@]}"; do
+  echo "Building $dir..."
+  (cd /scripts/"$dir" && dotnet build)
+done
 
 # Format
-docker compose run --rm linter bash -c "for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Building \$dir...\"; cd /scripts/\$dir && dotnet build; cd /scripts; done"
+(cd /scripts && dotnet tool restore)
+for dir in "${DIRS[@]}"; do
+  echo "Formatting $dir..."
+  (cd /scripts/"$dir" && dotnet format)
+done
+'
 ```
 
 ## TODO
