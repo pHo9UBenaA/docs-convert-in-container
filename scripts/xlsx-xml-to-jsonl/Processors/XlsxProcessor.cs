@@ -10,10 +10,10 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using SharedXmlToJsonl;
+using SharedXmlToJsonl.Configuration;
 using SharedXmlToJsonl.Factories;
 using SharedXmlToJsonl.Interfaces;
 using SharedXmlToJsonl.Models;
-using SharedXmlToJsonl.Configuration;
 
 namespace XlsxXmlToJsonl.Processors;
 

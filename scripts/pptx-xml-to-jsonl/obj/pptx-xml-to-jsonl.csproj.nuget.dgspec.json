@@ -1,0 +1,208 @@
+{
+  "format": 1,
+  "restore": {
+    "/scripts/pptx-xml-to-jsonl/pptx-xml-to-jsonl.csproj": {}
+  },
+  "projects": {
+    "/scripts/pptx-xml-to-jsonl/pptx-xml-to-jsonl.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/scripts/pptx-xml-to-jsonl/pptx-xml-to-jsonl.csproj",
+        "projectName": "pptx-xml-to-jsonl",
+        "projectPath": "/scripts/pptx-xml-to-jsonl/pptx-xml-to-jsonl.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/scripts/pptx-xml-to-jsonl/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/root/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/scripts/shared-xml-to-jsonl/SharedXmlToJsonl.csproj": {
+                "projectPath": "/scripts/shared-xml-to-jsonl/SharedXmlToJsonl.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "CommandLineParser": {
+              "target": "Package",
+              "version": "[2.9.1, )"
+            },
+            "DocumentFormat.OpenXml": {
+              "target": "Package",
+              "version": "[3.3.0, )"
+            },
+            "Microsoft.CodeAnalysis.NetAnalyzers": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Console": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "System.IO.Packaging": {
+              "target": "Package",
+              "version": "[9.0.9, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/8.0.414/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/scripts/shared-xml-to-jsonl/SharedXmlToJsonl.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/scripts/shared-xml-to-jsonl/SharedXmlToJsonl.csproj",
+        "projectName": "SharedXmlToJsonl",
+        "projectPath": "/scripts/shared-xml-to-jsonl/SharedXmlToJsonl.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/scripts/shared-xml-to-jsonl/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/root/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "DocumentFormat.OpenXml": {
+              "target": "Package",
+              "version": "[3.3.0, )"
+            },
+            "Microsoft.CodeAnalysis.NetAnalyzers": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Configuration.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Configuration.Binder": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Console": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Options.ConfigurationExtensions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "System.ComponentModel.Annotations": {
+              "target": "Package",
+              "version": "[5.0.0, )"
+            },
+            "System.IO.Packaging": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/8.0.414/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

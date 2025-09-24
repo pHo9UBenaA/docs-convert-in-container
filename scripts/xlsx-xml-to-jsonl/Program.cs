@@ -2,9 +2,9 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using XlsxXmlToJsonl.Commands;
 using SharedXmlToJsonl;
 using SharedXmlToJsonl.DependencyInjection;
+using XlsxXmlToJsonl.Commands;
 
 public class Program
 {
