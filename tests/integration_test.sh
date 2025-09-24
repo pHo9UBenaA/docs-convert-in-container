@@ -16,13 +16,11 @@ trap cleanup EXIT
 
 # Success message function
 success_message() {
-    echo ""
-    echo -e "\033[32m === $1 === \033[0m"
+    echo -e "\033[32m $1 \033[0m"
 }
 
 error_message() {
-    echo ""
-    echo -e "\033[31m === $1 === \033[0m"
+    echo -e "\033[31m $1 \033[0m"
 }
 
 # 0. Copy contents of tests/docs to temporary directory
