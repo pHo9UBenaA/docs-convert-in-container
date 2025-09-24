@@ -173,6 +173,11 @@ public class XlsxProcessor : IXlsxProcessor
                 var worksheetDoc = PackageUtilities.GetXDocument(worksheetPart);
                 var sheetElements = ProcessWorksheet(worksheetDoc, sharedStrings, dateFormats, sheetNumber, sheetName);
 
+                // Process drawings
+                var elementIndex = sheetElements.Count;
+                var drawingElements = ProcessDrawings(package, worksheetPart, sheetNumber, sheetName, ref elementIndex);
+                sheetElements.AddRange(drawingElements);
+
                 sheetDataByNumber[sheetNumber] = sheetElements;
                 sheetNumber++;
             }
@@ -271,6 +276,9 @@ public class XlsxProcessor : IXlsxProcessor
         var elements = new List<SheetElement>();
         var elementIndex = 0;
 
+        // Load merge cells information
+        var mergeCells = LoadMergeCells(worksheetDoc);
+
         // Add sheet metadata as first element
         elements.Add(new SheetElement
         {
@@ -296,7 +304,7 @@ public class XlsxProcessor : IXlsxProcessor
 
             foreach (var cell in row.Elements(NamespaceConstants.spreadsheet + "c"))
             {
-                var cellElement = ProcessCell(cell, sharedStrings, dateFormats, sheetNumber, sheetName, ref elementIndex);
+                var cellElement = ProcessCell(cell, sharedStrings, dateFormats, mergeCells, sheetNumber, sheetName, ref elementIndex);
                 if (cellElement != null)
                 {
                     cellElement.Row = rowNum;
@@ -308,10 +316,417 @@ public class XlsxProcessor : IXlsxProcessor
         return elements;
     }
 
+    /// <summary>
+    /// Process drawings (shapes and images) in the worksheet
+    /// </summary>
+    private List<SheetElement> ProcessDrawings(
+        Package package,
+        PackagePart worksheetPart,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
+    {
+        var elements = new List<SheetElement>();
+
+        try
+        {
+            // Find drawing relationship
+            var drawingRel = worksheetPart.GetRelationships()
+                .FirstOrDefault(r => r.RelationshipType == NamespaceConstants.DrawingRelType);
+
+            if (drawingRel == null)
+                return elements;
+
+            // Get drawing part
+            var drawingPart = package.GetPart(
+                PackUriHelper.ResolvePartUri(worksheetPart.Uri, drawingRel.TargetUri));
+
+            var drawingDoc = PackageUtilities.GetXDocument(drawingPart);
+
+            // Process two-cell anchors (most common for shapes/images)
+            foreach (var twoCellAnchor in drawingDoc.Descendants(NamespaceConstants.XDR + "twoCellAnchor"))
+            {
+                var anchorInfo = ExtractTwoCellAnchor(twoCellAnchor);
+
+                // Process picture
+                var pic = twoCellAnchor.Element(NamespaceConstants.XDR + "pic");
+                if (pic != null)
+                {
+                    var pictureElement = ExtractPictureElement(pic, drawingPart, package, sheetNumber, sheetName, ref elementIndex);
+                    if (pictureElement != null)
+                    {
+                        pictureElement.AnchorType = "twoCellAnchor";
+                        pictureElement.AnchorFrom = anchorInfo.from;
+                        pictureElement.AnchorTo = anchorInfo.to;
+                        elements.Add(pictureElement);
+                    }
+                }
+
+                // Process shape
+                var sp = twoCellAnchor.Element(NamespaceConstants.XDR + "sp");
+                if (sp != null)
+                {
+                    var shapeElement = ExtractShapeElement(sp, sheetNumber, sheetName, ref elementIndex);
+                    if (shapeElement != null)
+                    {
+                        shapeElement.AnchorType = "twoCellAnchor";
+                        shapeElement.AnchorFrom = anchorInfo.from;
+                        shapeElement.AnchorTo = anchorInfo.to;
+                        elements.Add(shapeElement);
+                    }
+                }
+
+                // Process graphic frame (charts, etc.)
+                var graphicFrame = twoCellAnchor.Element(NamespaceConstants.XDR + "graphicFrame");
+                if (graphicFrame != null)
+                {
+                    var graphicElement = ExtractGraphicFrameElement(graphicFrame, sheetNumber, sheetName, ref elementIndex);
+                    if (graphicElement != null)
+                    {
+                        graphicElement.AnchorType = "twoCellAnchor";
+                        graphicElement.AnchorFrom = anchorInfo.from;
+                        graphicElement.AnchorTo = anchorInfo.to;
+                        elements.Add(graphicElement);
+                    }
+                }
+
+                // Process connector
+                var cxnSp = twoCellAnchor.Element(NamespaceConstants.XDR + "cxnSp");
+                if (cxnSp != null)
+                {
+                    var connectorElement = ExtractConnectorElement(cxnSp, sheetNumber, sheetName, ref elementIndex);
+                    if (connectorElement != null)
+                    {
+                        connectorElement.AnchorType = "twoCellAnchor";
+                        connectorElement.AnchorFrom = anchorInfo.from;
+                        connectorElement.AnchorTo = anchorInfo.to;
+                        elements.Add(connectorElement);
+                    }
+                }
+            }
+
+            // Process one-cell anchors
+            foreach (var oneCellAnchor in drawingDoc.Descendants(NamespaceConstants.XDR + "oneCellAnchor"))
+            {
+                var anchorInfo = ExtractOneCellAnchor(oneCellAnchor);
+
+                // Process elements similar to two-cell anchor
+                var pic = oneCellAnchor.Element(NamespaceConstants.XDR + "pic");
+                if (pic != null)
+                {
+                    var pictureElement = ExtractPictureElement(pic, drawingPart, package, sheetNumber, sheetName, ref elementIndex);
+                    if (pictureElement != null)
+                    {
+                        pictureElement.AnchorType = "oneCellAnchor";
+                        pictureElement.AnchorFrom = anchorInfo;
+                        elements.Add(pictureElement);
+                    }
+                }
+            }
+
+            // Process absolute anchors
+            foreach (var absoluteAnchor in drawingDoc.Descendants(NamespaceConstants.XDR + "absoluteAnchor"))
+            {
+                // Process elements with absolute positioning
+                var pic = absoluteAnchor.Element(NamespaceConstants.XDR + "pic");
+                if (pic != null)
+                {
+                    var pictureElement = ExtractPictureElement(pic, drawingPart, package, sheetNumber, sheetName, ref elementIndex);
+                    if (pictureElement != null)
+                    {
+                        pictureElement.AnchorType = "absoluteAnchor";
+                        elements.Add(pictureElement);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Error processing drawings for sheet {SheetNumber}", sheetNumber);
+        }
+
+        return elements;
+    }
+
+    /// <summary>
+    /// Extract two-cell anchor information
+    /// </summary>
+    private (CellAnchor from, CellAnchor to) ExtractTwoCellAnchor(XElement twoCellAnchor)
+    {
+        var from = twoCellAnchor.Element(NamespaceConstants.XDR + "from");
+        var to = twoCellAnchor.Element(NamespaceConstants.XDR + "to");
+
+        var fromAnchor = ExtractCellAnchor(from);
+        var toAnchor = ExtractCellAnchor(to);
+
+        return (fromAnchor, toAnchor);
+    }
+
+    /// <summary>
+    /// Extract one-cell anchor information
+    /// </summary>
+    private CellAnchor ExtractOneCellAnchor(XElement oneCellAnchor)
+    {
+        var from = oneCellAnchor.Element(NamespaceConstants.XDR + "from");
+        return ExtractCellAnchor(from);
+    }
+
+    /// <summary>
+    /// Extract cell anchor details
+    /// </summary>
+    private CellAnchor ExtractCellAnchor(XElement? anchorElement)
+    {
+        if (anchorElement == null)
+            return new CellAnchor("", 0, 0, "", 0, 0);
+
+        var col = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "col")?.Value ?? "0");
+        var colOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "colOff")?.Value ?? "0");
+        var row = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "row")?.Value ?? "0");
+        var rowOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "rowOff")?.Value ?? "0");
+
+        var cellRef = GetCellReference(col + 1, row + 1); // Convert to 1-based
+
+        return new CellAnchor(cellRef, col, row, cellRef, col, row);
+    }
+
+    /// <summary>
+    /// Extract picture element
+    /// </summary>
+    private SheetElement? ExtractPictureElement(
+        XElement pic,
+        PackagePart drawingPart,
+        Package package,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
+    {
+        var nvPicPr = pic.Element(NamespaceConstants.XDR + "nvPicPr");
+        var cNvPr = nvPicPr?.Element(NamespaceConstants.XDR + "cNvPr");
+        var id = cNvPr?.Attribute("id")?.Value ?? "";
+        var name = cNvPr?.Attribute("name")?.Value ?? "";
+        var descr = cNvPr?.Attribute("descr")?.Value;
+
+        // Get image reference
+        var blipFill = pic.Element(NamespaceConstants.XDR + "blipFill");
+        var blip = blipFill?.Element(NamespaceConstants.a + "blip");
+        var embedId = blip?.Attribute(NamespaceConstants.r + "embed")?.Value;
+
+        string? imagePath = null;
+        if (!string.IsNullOrEmpty(embedId))
+        {
+            imagePath = ResolveImagePath(drawingPart, embedId, package);
+        }
+
+        // Get shape properties
+        var spPr = pic.Element(NamespaceConstants.XDR + "spPr");
+        var transform = ExtractTransformFromSpPr(spPr);
+
+        return new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "picture",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            ShapeType = "picture",
+            Transform = transform,
+            ImagePath = imagePath,
+            Metadata = descr != null ? new Dictionary<string, object> { ["description"] = descr } : null
+        };
+    }
+
+    /// <summary>
+    /// Extract shape element
+    /// </summary>
+    private SheetElement? ExtractShapeElement(
+        XElement sp,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
+    {
+        var nvSpPr = sp.Element(NamespaceConstants.XDR + "nvSpPr");
+        var cNvPr = nvSpPr?.Element(NamespaceConstants.XDR + "cNvPr");
+        var id = cNvPr?.Attribute("id")?.Value ?? "";
+        var name = cNvPr?.Attribute("name")?.Value ?? "";
+
+        var spPr = sp.Element(NamespaceConstants.XDR + "spPr");
+        var transform = ExtractTransformFromSpPr(spPr);
+
+        // Get shape type
+        var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
+        var shapeType = prstGeom?.Attribute("prst")?.Value;
+
+        return new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "shape",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            ShapeType = shapeType,
+            Transform = transform
+        };
+    }
+
+    /// <summary>
+    /// Extract graphic frame element (charts, etc.)
+    /// </summary>
+    private SheetElement? ExtractGraphicFrameElement(
+        XElement graphicFrame,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
+    {
+        var nvGraphicFramePr = graphicFrame.Element(NamespaceConstants.XDR + "nvGraphicFramePr");
+        var cNvPr = nvGraphicFramePr?.Element(NamespaceConstants.XDR + "cNvPr");
+        var id = cNvPr?.Attribute("id")?.Value ?? "";
+        var name = cNvPr?.Attribute("name")?.Value ?? "";
+
+        var xfrm = graphicFrame.Element(NamespaceConstants.XDR + "xfrm");
+        var transform = ExtractTransformFromXfrm(xfrm);
+
+        // Determine the type of graphic
+        var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
+        var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
+        var uri = graphicData?.Attribute("uri")?.Value;
+
+        string? graphicType = "graphic";
+        if (uri != null && uri.Contains("chart"))
+        {
+            graphicType = "chart";
+        }
+        else if (uri != null && uri.Contains("diagram"))
+        {
+            graphicType = "diagram";
+        }
+
+        return new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "graphic_frame",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            ShapeType = graphicType,
+            Transform = transform
+        };
+    }
+
+    /// <summary>
+    /// Extract connector element
+    /// </summary>
+    private SheetElement? ExtractConnectorElement(
+        XElement cxnSp,
+        int sheetNumber,
+        string sheetName,
+        ref int elementIndex)
+    {
+        var nvCxnSpPr = cxnSp.Element(NamespaceConstants.XDR + "nvCxnSpPr");
+        var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.XDR + "cNvPr");
+        var id = cNvPr?.Attribute("id")?.Value ?? "";
+        var name = cNvPr?.Attribute("name")?.Value ?? "";
+
+        var spPr = cxnSp.Element(NamespaceConstants.XDR + "spPr");
+        var transform = ExtractTransformFromSpPr(spPr);
+
+        return new SheetElement
+        {
+            SheetNumber = sheetNumber,
+            SheetName = sheetName,
+            ElementType = "connector",
+            ElementIndex = elementIndex++,
+            ShapeId = id,
+            ShapeName = name,
+            ShapeType = "connector",
+            Transform = transform
+        };
+    }
+
+    /// <summary>
+    /// Extract transform from shape properties
+    /// </summary>
+    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromSpPr(XElement? spPr)
+    {
+        if (spPr == null)
+            return null;
+
+        var xfrm = spPr.Element(NamespaceConstants.a + "xfrm");
+        return ExtractTransformFromXfrm(xfrm);
+    }
+
+    /// <summary>
+    /// Extract transform from xfrm element
+    /// </summary>
+    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
+    {
+        if (xfrm == null)
+            return null;
+
+        var transform = new SharedXmlToJsonl.Models.Transform();
+
+        var off = xfrm.Element(NamespaceConstants.a + "off");
+        if (off != null)
+        {
+            var x = off.Attribute("x")?.Value;
+            var y = off.Attribute("y")?.Value;
+            if (x != null && y != null && long.TryParse(x, out long xVal) && long.TryParse(y, out long yVal))
+            {
+                transform.Position = new Position(xVal, yVal);
+            }
+        }
+
+        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        if (ext != null)
+        {
+            var cx = ext.Attribute("cx")?.Value;
+            var cy = ext.Attribute("cy")?.Value;
+            if (cx != null && cy != null && long.TryParse(cx, out long width) && long.TryParse(cy, out long height))
+            {
+                transform.Size = new Size(width, height);
+            }
+        }
+
+        var rot = xfrm.Attribute("rot")?.Value;
+        if (!string.IsNullOrEmpty(rot) && double.TryParse(rot, out double rotation))
+        {
+            transform.Rotation = rotation / 60000.0; // Convert from 60000ths of a degree
+        }
+
+        return transform;
+    }
+
+    /// <summary>
+    /// Resolve image path from relationship
+    /// </summary>
+    private string? ResolveImagePath(PackagePart drawingPart, string embedId, Package package)
+    {
+        try
+        {
+            var imageRel = drawingPart.GetRelationship(embedId);
+            if (imageRel == null)
+                return null;
+
+            var imagePart = package.GetPart(
+                PackUriHelper.ResolvePartUri(drawingPart.Uri, imageRel.TargetUri));
+
+            // Return the relative path of the image
+            return imagePart.Uri.ToString().TrimStart('/');
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to resolve image path for embed ID {EmbedId}", embedId);
+            return null;
+        }
+    }
+
     private SheetElement? ProcessCell(
         XElement cell,
         Dictionary<int, string> sharedStrings,
         HashSet<int> dateFormats,
+        Dictionary<string, string> mergeCells,
         int sheetNumber,
         string sheetName,
         ref int elementIndex)
@@ -413,6 +828,22 @@ public class XlsxProcessor : IXlsxProcessor
             Column = column
         };
 
+        // Check if this cell is part of a merge range
+        if (mergeCells.ContainsKey(cellRef))
+        {
+            var mergeRange = mergeCells[cellRef];
+            var parentCell = GetMergeParentCell(mergeRange);
+
+            element.IsMerged = true;
+            element.MergeRange = mergeRange;
+
+            // If this is not the parent cell, set the parent reference
+            if (cellRef != parentCell)
+            {
+                element.MergeParent = parentCell;
+            }
+        }
+
         return element;
     }
 
@@ -465,6 +896,111 @@ public class XlsxProcessor : IXlsxProcessor
         }
 
         return sanitized;
+    }
+
+    /// <summary>
+    /// Load merge cells information from worksheet
+    /// </summary>
+    private Dictionary<string, string> LoadMergeCells(XDocument worksheetDoc)
+    {
+        var mergeCellsDict = new Dictionary<string, string>();
+
+        var mergeCells = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "mergeCells");
+        if (mergeCells == null)
+            return mergeCellsDict;
+
+        foreach (var mergeCell in mergeCells.Elements(NamespaceConstants.spreadsheet + "mergeCell"))
+        {
+            var range = mergeCell.Attribute("ref")?.Value;
+            if (string.IsNullOrEmpty(range))
+                continue;
+
+            // Parse the range (e.g., "A1:C3")
+            var parts = range.Split(':');
+            if (parts.Length != 2)
+                continue;
+
+            var startCell = parts[0];
+            var endCell = parts[1];
+
+            // Get all cells in the range
+            var cellsInRange = GetCellsInRange(startCell, endCell);
+            foreach (var cell in cellsInRange)
+            {
+                mergeCellsDict[cell] = range;
+            }
+        }
+
+        return mergeCellsDict;
+    }
+
+    /// <summary>
+    /// Get the parent cell (top-left) of a merge range
+    /// </summary>
+    private string GetMergeParentCell(string mergeRange)
+    {
+        var parts = mergeRange.Split(':');
+        return parts.Length > 0 ? parts[0] : mergeRange;
+    }
+
+    /// <summary>
+    /// Get all cell references within a range
+    /// </summary>
+    private List<string> GetCellsInRange(string startCell, string endCell)
+    {
+        var cells = new List<string>();
+
+        // Parse start cell
+        var (startCol, startRow) = ParseCellReference(startCell);
+        var (endCol, endRow) = ParseCellReference(endCell);
+
+        for (int row = startRow; row <= endRow; row++)
+        {
+            for (int col = startCol; col <= endCol; col++)
+            {
+                cells.Add(GetCellReference(col, row));
+            }
+        }
+
+        return cells;
+    }
+
+    /// <summary>
+    /// Parse a cell reference into column and row numbers
+    /// </summary>
+    private (int col, int row) ParseCellReference(string cellRef)
+    {
+        int col = 0;
+        int rowIndex = 0;
+
+        // Find where the row number starts
+        for (int i = 0; i < cellRef.Length; i++)
+        {
+            if (char.IsDigit(cellRef[i]))
+            {
+                rowIndex = i;
+                break;
+            }
+            col = col * 26 + (cellRef[i] - 'A' + 1);
+        }
+
+        int row = int.Parse(cellRef.Substring(rowIndex));
+        return (col, row);
+    }
+
+    /// <summary>
+    /// Get cell reference from column and row numbers
+    /// </summary>
+    private string GetCellReference(int col, int row)
+    {
+        string colStr = "";
+        while (col > 0)
+        {
+            col--;
+            colStr = (char)('A' + col % 26) + colStr;
+            col /= 26;
+        }
+        return colStr + row;
     }
 
     public int ListSheetNames(string inputPath)

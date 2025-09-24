@@ -222,6 +222,27 @@ public class SheetElement
 
     [JsonPropertyName("error_info")]
     public string? ErrorInfo { get; set; }
+
+    [JsonPropertyName("merge_range")]
+    public string? MergeRange { get; set; }
+
+    [JsonPropertyName("is_merged")]
+    public bool? IsMerged { get; set; }
+
+    [JsonPropertyName("merge_parent")]
+    public string? MergeParent { get; set; }
+
+    [JsonPropertyName("image_path")]
+    public string? ImagePath { get; set; }
+
+    [JsonPropertyName("anchor_type")]
+    public string? AnchorType { get; set; }
+
+    [JsonPropertyName("anchor_from")]
+    public CellAnchor? AnchorFrom { get; set; }
+
+    [JsonPropertyName("anchor_to")]
+    public CellAnchor? AnchorTo { get; set; }
 }
 
 /// <summary>
