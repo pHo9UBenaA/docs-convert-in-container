@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace SharedXmlToJsonl.Repositories;
 
-public class FileSystemDocumentRepository : IDocumentRepository
+public partial class FileSystemDocumentRepository : IDocumentRepository
 {
     private readonly ILogger<FileSystemDocumentRepository> _logger;
     private const int DefaultBufferSize = 4096;
@@ -35,7 +35,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         if (!File.Exists(path))
             throw new FileNotFoundException($"File not found: {path}", path);
 
-        _logger.LogDebug("Opening read stream for: {Path}", path);
+        LogOpeningReadStream(_logger, path);
 
         try
         {
@@ -51,7 +51,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error opening read stream for: {Path}", path);
+            LogErrorOpeningReadStream(_logger, ex, path);
             throw;
         }
     }
@@ -61,7 +61,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         if (string.IsNullOrEmpty(path))
             throw new ArgumentNullException(nameof(path));
 
-        _logger.LogDebug("Opening write stream for: {Path}", path);
+        LogOpeningWriteStream(_logger, path);
 
         try
         {
@@ -84,7 +84,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error opening write stream for: {Path}", path);
+            LogErrorOpeningWriteStream(_logger, ex, path);
             throw;
         }
     }
@@ -123,7 +123,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
 
         ArgumentNullException.ThrowIfNull(content);
 
-        _logger.LogDebug("Saving document to: {Path}", path);
+        LogSavingDocument(_logger, path);
 
         try
         {
@@ -131,11 +131,11 @@ public class FileSystemDocumentRepository : IDocumentRepository
             await stream.WriteAsync(content, 0, content.Length, cancellationToken).ConfigureAwait(false);
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-            _logger.LogInformation("Document saved successfully to: {Path} ({Size} bytes)", path, content.Length);
+            LogDocumentSavedSuccessfully(_logger, path, content.Length);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving document to: {Path}", path);
+            LogErrorSavingDocument(_logger, ex, path);
             throw;
         }
     }
@@ -153,11 +153,11 @@ public class FileSystemDocumentRepository : IDocumentRepository
 
         if (!Directory.Exists(directory))
         {
-            _logger.LogWarning("Directory not found: {Directory}", directory);
+            LogDirectoryNotFound(_logger, directory);
             return Array.Empty<string>();
         }
 
-        _logger.LogDebug("Listing documents in {Directory} with pattern {Pattern}", directory, pattern);
+        LogListingDocuments(_logger, directory, pattern);
 
         try
         {
@@ -169,7 +169,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error listing documents in {Directory}", directory);
+            LogErrorListingDocuments(_logger, ex, directory);
             throw;
         }
     }
@@ -181,20 +181,20 @@ public class FileSystemDocumentRepository : IDocumentRepository
 
         if (!File.Exists(path))
         {
-            _logger.LogWarning("File not found for deletion: {Path}", path);
+            LogFileNotFoundForDeletion(_logger, path);
             return;
         }
 
-        _logger.LogDebug("Deleting file: {Path}", path);
+        LogDeletingFile(_logger, path);
 
         try
         {
             await Task.Run(() => File.Delete(path), cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("File deleted successfully: {Path}", path);
+            LogFileDeletedSuccessfully(_logger, path);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting file: {Path}", path);
+            LogErrorDeletingFile(_logger, ex, path);
             throw;
         }
     }
@@ -205,7 +205,7 @@ public class FileSystemDocumentRepository : IDocumentRepository
         {
             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
             Directory.CreateDirectory(tempPath);
-            _logger.LogDebug("Created temporary directory: {Path}", tempPath);
+            LogCreatedTemporaryDirectory(_logger, tempPath);
             return tempPath;
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -220,4 +220,109 @@ public class FileSystemDocumentRepository : IDocumentRepository
 
         return await Task.Run(() => new FileInfo(path).Length, cancellationToken).ConfigureAwait(false);
     }
+
+    [LoggerMessage(
+        EventId = 4001,
+        Level = LogLevel.Debug,
+        Message = "Opening read stream for: {path}")]
+    private static partial void LogOpeningReadStream(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4002,
+        Level = LogLevel.Error,
+        Message = "Error opening read stream for: {path}")]
+    private static partial void LogErrorOpeningReadStream(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 4003,
+        Level = LogLevel.Debug,
+        Message = "Opening write stream for: {path}")]
+    private static partial void LogOpeningWriteStream(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4004,
+        Level = LogLevel.Error,
+        Message = "Error opening write stream for: {path}")]
+    private static partial void LogErrorOpeningWriteStream(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 4005,
+        Level = LogLevel.Debug,
+        Message = "Saving document to: {path}")]
+    private static partial void LogSavingDocument(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4006,
+        Level = LogLevel.Information,
+        Message = "Document saved successfully to: {path} ({size} bytes)")]
+    private static partial void LogDocumentSavedSuccessfully(
+        ILogger logger, string path, int size);
+
+    [LoggerMessage(
+        EventId = 4007,
+        Level = LogLevel.Error,
+        Message = "Error saving document to: {path}")]
+    private static partial void LogErrorSavingDocument(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 4008,
+        Level = LogLevel.Warning,
+        Message = "Directory not found: {directory}")]
+    private static partial void LogDirectoryNotFound(
+        ILogger logger, string directory);
+
+    [LoggerMessage(
+        EventId = 4009,
+        Level = LogLevel.Debug,
+        Message = "Listing documents in {directory} with pattern {pattern}")]
+    private static partial void LogListingDocuments(
+        ILogger logger, string directory, string pattern);
+
+    [LoggerMessage(
+        EventId = 4010,
+        Level = LogLevel.Error,
+        Message = "Error listing documents in {directory}")]
+    private static partial void LogErrorListingDocuments(
+        ILogger logger, Exception ex, string directory);
+
+    [LoggerMessage(
+        EventId = 4011,
+        Level = LogLevel.Warning,
+        Message = "File not found for deletion: {path}")]
+    private static partial void LogFileNotFoundForDeletion(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4012,
+        Level = LogLevel.Debug,
+        Message = "Deleting file: {path}")]
+    private static partial void LogDeletingFile(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4013,
+        Level = LogLevel.Information,
+        Message = "File deleted successfully: {path}")]
+    private static partial void LogFileDeletedSuccessfully(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 4014,
+        Level = LogLevel.Error,
+        Message = "Error deleting file: {path}")]
+    private static partial void LogErrorDeletingFile(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 4015,
+        Level = LogLevel.Debug,
+        Message = "Created temporary directory: {path}")]
+    private static partial void LogCreatedTemporaryDirectory(
+        ILogger logger, string path);
 }

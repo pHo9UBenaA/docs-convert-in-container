@@ -15,7 +15,7 @@ public interface IXmlParser
     Task<XDocument> LoadAsync(string filePath, CancellationToken cancellationToken = default);
 }
 
-public class XmlParser : IXmlParser
+public partial class XmlParser : IXmlParser
 {
     private readonly ILogger<XmlParser> _logger;
     private static readonly XmlReaderSettings DefaultSettings = new()
@@ -46,7 +46,7 @@ public class XmlParser : IXmlParser
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing XML string");
+            LogErrorParsingXmlString(_logger, ex);
             throw;
         }
     }
@@ -64,7 +64,7 @@ public class XmlParser : IXmlParser
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing XML stream");
+            LogErrorParsingXmlStream(_logger, ex);
             throw;
         }
     }
@@ -79,7 +79,7 @@ public class XmlParser : IXmlParser
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"XML file not found: {filePath}", filePath);
 
-        _logger.LogDebug("Loading XML from file: {FilePath}", filePath);
+        LogLoadingXmlFromFile(_logger, filePath);
 
         try
         {
@@ -95,8 +95,36 @@ public class XmlParser : IXmlParser
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading XML from file: {FilePath}", filePath);
+            LogErrorLoadingXmlFromFile(_logger, ex, filePath);
             throw;
         }
     }
+
+    [LoggerMessage(
+        EventId = 5001,
+        Level = LogLevel.Error,
+        Message = "Error parsing XML string")]
+    private static partial void LogErrorParsingXmlString(
+        ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        EventId = 5002,
+        Level = LogLevel.Error,
+        Message = "Error parsing XML stream")]
+    private static partial void LogErrorParsingXmlStream(
+        ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        EventId = 5003,
+        Level = LogLevel.Debug,
+        Message = "Loading XML from file: {filePath}")]
+    private static partial void LogLoadingXmlFromFile(
+        ILogger logger, string filePath);
+
+    [LoggerMessage(
+        EventId = 5004,
+        Level = LogLevel.Error,
+        Message = "Error loading XML from file: {filePath}")]
+    private static partial void LogErrorLoadingXmlFromFile(
+        ILogger logger, Exception ex, string filePath);
 }

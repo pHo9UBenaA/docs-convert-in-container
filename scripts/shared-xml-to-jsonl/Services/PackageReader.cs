@@ -16,7 +16,7 @@ public interface IPackageReader
     Task<PackagePart?> GetPartByTypeAsync(Package package, string contentType, CancellationToken cancellationToken = default);
 }
 
-public class PackageReader : IPackageReader
+public partial class PackageReader : IPackageReader
 {
     private readonly ILogger<PackageReader> _logger;
 
@@ -36,7 +36,7 @@ public class PackageReader : IPackageReader
         if (!File.Exists(path))
             throw new FileNotFoundException($"File not found: {path}", path);
 
-        _logger.LogDebug("Opening package: {Path}", path);
+        LogOpeningPackage(_logger, path);
 
         try
         {
@@ -46,7 +46,7 @@ public class PackageReader : IPackageReader
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error opening package: {Path}", path);
+            LogErrorOpeningPackage(_logger, ex, path);
             throw;
         }
     }
@@ -65,7 +65,7 @@ public class PackageReader : IPackageReader
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting package parts");
+            LogErrorGettingPackageParts(_logger, ex);
             throw;
         }
     }
@@ -88,8 +88,36 @@ public class PackageReader : IPackageReader
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting package part by type: {ContentType}", contentType);
+            LogErrorGettingPackagePartByType(_logger, ex, contentType);
             throw;
         }
     }
+
+    [LoggerMessage(
+        EventId = 2001,
+        Level = LogLevel.Debug,
+        Message = "Opening package: {path}")]
+    private static partial void LogOpeningPackage(
+        ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 2002,
+        Level = LogLevel.Error,
+        Message = "Error opening package: {path}")]
+    private static partial void LogErrorOpeningPackage(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 2003,
+        Level = LogLevel.Error,
+        Message = "Error getting package parts")]
+    private static partial void LogErrorGettingPackageParts(
+        ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        EventId = 2004,
+        Level = LogLevel.Error,
+        Message = "Error getting package part by type: {contentType}")]
+    private static partial void LogErrorGettingPackagePartByType(
+        ILogger logger, Exception ex, string contentType);
 }

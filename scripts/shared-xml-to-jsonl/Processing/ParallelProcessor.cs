@@ -9,7 +9,7 @@ using SharedXmlToJsonl.Configuration;
 
 namespace SharedXmlToJsonl.Processing;
 
-public class ParallelProcessor : IParallelProcessor
+public partial class ParallelProcessor : IParallelProcessor
 {
     private readonly ILogger<ParallelProcessor> _logger;
     private readonly ProcessingOptions _options;
@@ -50,7 +50,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -96,7 +96,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -136,7 +136,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -149,4 +149,11 @@ public class ParallelProcessor : IParallelProcessor
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
         return results;
     }
+
+    [LoggerMessage(
+        EventId = 7001,
+        Level = LogLevel.Error,
+        Message = "Error processing item: {item}")]
+    private static partial void LogErrorProcessingItem(
+        ILogger logger, Exception ex, string item);
 }

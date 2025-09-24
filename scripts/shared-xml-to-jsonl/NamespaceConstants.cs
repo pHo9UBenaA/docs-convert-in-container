@@ -17,7 +17,7 @@ public static class NamespaceConstants
     public static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
     // Spreadsheet alias
-    public static readonly XNamespace spreadsheet = S;
+    public static readonly XNamespace Spreadsheet = S;
 
     // Additional drawing namespaces
     public static readonly XNamespace A14 = "http://schemas.microsoft.com/office/drawing/2010/main";

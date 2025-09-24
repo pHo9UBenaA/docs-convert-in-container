@@ -17,7 +17,7 @@ using SharedXmlToJsonl.Models;
 
 namespace PptxXmlToJsonl.Processors;
 
-public class PptxProcessor : IPptxProcessor
+public partial class PptxProcessor : IPptxProcessor
 {
     private readonly IElementFactory _elementFactory;
     private readonly IJsonWriter _jsonWriter;
@@ -51,7 +51,7 @@ public class PptxProcessor : IPptxProcessor
         ProcessingOptions options,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting PPTX processing for {Path}", inputPath);
+        LogStartingProcessing(_logger, inputPath);
 
         try
         {
@@ -59,7 +59,7 @@ public class PptxProcessor : IPptxProcessor
 
             if (!slideDataByNumber.Any())
             {
-                _logger.LogWarning("No slides found in {Path}", inputPath);
+                LogNoSlidesFound(_logger, inputPath);
                 return new ProcessingResult
                 {
                     Success = false,
@@ -78,7 +78,7 @@ public class PptxProcessor : IPptxProcessor
                 outputPaths.Add(outputPath);
             }
 
-            _logger.LogInformation("Successfully processed {Count} slides", slideDataByNumber.Count);
+            LogProcessingSuccess(_logger, slideDataByNumber.Count);
             return new SharedXmlToJsonl.Models.ProcessingResult
             {
                 Success = true,
@@ -88,7 +88,7 @@ public class PptxProcessor : IPptxProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing PPTX file {Path}", inputPath);
+            LogProcessingError(_logger, ex, inputPath);
             return new SharedXmlToJsonl.Models.ProcessingResult
             {
                 Success = false,
@@ -135,7 +135,7 @@ public class PptxProcessor : IPptxProcessor
             var presentationPart = PackageUtilities.GetPresentationPart(package);
             if (presentationPart == null)
             {
-                _logger.LogWarning("No presentation part found in {Path}", path);
+                LogNoPresentationPart(_logger, path);
                 return slideDataByNumber;
             }
 
@@ -538,4 +538,19 @@ public class PptxProcessor : IPptxProcessor
 
         return string.Join("\n", texts);
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting PPTX processing for {Path}")]
+    private static partial void LogStartingProcessing(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "No slides found in {Path}")]
+    private static partial void LogNoSlidesFound(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Successfully processed {Count} slides")]
+    private static partial void LogProcessingSuccess(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Error processing PPTX file {Path}")]
+    private static partial void LogProcessingError(ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "No presentation part found in {Path}")]
+    private static partial void LogNoPresentationPart(ILogger logger, string path);
 }

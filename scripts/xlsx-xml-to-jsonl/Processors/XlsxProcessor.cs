@@ -17,7 +17,7 @@ using SharedXmlToJsonl.Models;
 
 namespace XlsxXmlToJsonl.Processors;
 
-public class XlsxProcessor : IXlsxProcessor
+public partial class XlsxProcessor : IXlsxProcessor
 {
     private readonly IElementFactory? _elementFactory;
     private readonly IJsonWriter? _jsonWriter;
@@ -51,7 +51,7 @@ public class XlsxProcessor : IXlsxProcessor
         ProcessingOptions options,
         CancellationToken cancellationToken = default)
     {
-        _logger?.LogInformation("Starting XLSX processing for {Path}", inputPath);
+        if (_logger != null) LogStartingProcessing(_logger, inputPath);
 
         try
         {
@@ -59,7 +59,7 @@ public class XlsxProcessor : IXlsxProcessor
 
             if (!sheetDataByNumber.Any())
             {
-                _logger?.LogWarning("No worksheets found in {Path}", inputPath);
+                if (_logger != null) LogNoWorksheetsFound(_logger, inputPath);
                 return new ProcessingResult
                 {
                     Success = false,
@@ -81,7 +81,7 @@ public class XlsxProcessor : IXlsxProcessor
                 outputPaths.Add(outputPath);
             }
 
-            _logger?.LogInformation("Successfully processed {Count} sheets", sheetDataByNumber.Count);
+            if (_logger != null) LogProcessingSuccess(_logger, sheetDataByNumber.Count);
             return new ProcessingResult
             {
                 Success = true,
@@ -91,7 +91,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Error processing XLSX file {Path}", inputPath);
+            if (_logger != null) LogProcessingError(_logger, ex, inputPath);
             return new ProcessingResult
             {
                 Success = false,
@@ -145,14 +145,14 @@ public class XlsxProcessor : IXlsxProcessor
             var workbookPart = PackageUtilities.GetWorkbookPart(package);
             if (workbookPart == null)
             {
-                _logger?.LogWarning("No workbook part found in {Path}", path);
+                if (_logger != null) LogNoWorkbookPart(_logger, path);
                 return sheetDataByNumber;
             }
 
             var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
             var sheets = workbookDoc
-                .Descendants(NamespaceConstants.spreadsheet + "sheets")
-                .Elements(NamespaceConstants.spreadsheet + "sheet")
+                .Descendants(NamespaceConstants.Spreadsheet + "sheets")
+                .Elements(NamespaceConstants.Spreadsheet + "sheet")
                 .ToList();
 
             var sheetNumber = 1;
@@ -195,7 +195,7 @@ public class XlsxProcessor : IXlsxProcessor
         {
             var sharedStringsDoc = PackageUtilities.GetXDocument(sharedStringsPart);
             var stringItems = sharedStringsDoc
-                .Descendants(NamespaceConstants.spreadsheet + "si")
+                .Descendants(NamespaceConstants.Spreadsheet + "si")
                 .ToList();
 
             for (int i = 0; i < stringItems.Count; i++)
@@ -219,7 +219,7 @@ public class XlsxProcessor : IXlsxProcessor
 
             // Get custom number formats that look like dates
             var numFmts = stylesDoc
-                .Descendants(NamespaceConstants.spreadsheet + "numFmt")
+                .Descendants(NamespaceConstants.Spreadsheet + "numFmt")
                 .Where(n => IsDateFormat(n.Attribute("formatCode")?.Value ?? ""))
                 .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0"));
 
@@ -249,16 +249,16 @@ public class XlsxProcessor : IXlsxProcessor
         var texts = new List<string>();
 
         // Check for simple text
-        var t = si.Element(NamespaceConstants.spreadsheet + "t");
+        var t = si.Element(NamespaceConstants.Spreadsheet + "t");
         if (t != null)
         {
             return t.Value;
         }
 
         // Check for rich text
-        foreach (var r in si.Elements(NamespaceConstants.spreadsheet + "r"))
+        foreach (var r in si.Elements(NamespaceConstants.Spreadsheet + "r"))
         {
-            var rText = r.Element(NamespaceConstants.spreadsheet + "t")?.Value;
+            var rText = r.Element(NamespaceConstants.Spreadsheet + "t")?.Value;
             if (!string.IsNullOrEmpty(rText))
                 texts.Add(rText);
         }
@@ -293,16 +293,16 @@ public class XlsxProcessor : IXlsxProcessor
             }
         });
 
-        var sheetData = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "sheetData");
+        var sheetData = worksheetDoc.Root?.Element(NamespaceConstants.Spreadsheet + "sheetData");
         if (sheetData == null)
             return elements;
 
         // Process all cells
-        foreach (var row in sheetData.Elements(NamespaceConstants.spreadsheet + "row"))
+        foreach (var row in sheetData.Elements(NamespaceConstants.Spreadsheet + "row"))
         {
             var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0");
 
-            foreach (var cell in row.Elements(NamespaceConstants.spreadsheet + "c"))
+            foreach (var cell in row.Elements(NamespaceConstants.Spreadsheet + "c"))
             {
                 var cellElement = ProcessCell(cell, sharedStrings, dateFormats, mergeCells, sheetNumber, sheetName, ref elementIndex);
                 if (cellElement != null)
@@ -484,7 +484,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Error processing drawings for sheet {SheetNumber}", sheetNumber);
+            if (_logger != null) LogDrawingsError(_logger, ex, sheetNumber);
         }
 
         return elements;
@@ -868,7 +868,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to resolve image path for embed ID {EmbedId}", embedId);
+            if (_logger != null) LogImagePathError(_logger, ex, embedId);
             return null;
         }
     }
@@ -890,8 +890,8 @@ public class XlsxProcessor : IXlsxProcessor
 
         var cellType = cell.Attribute("t")?.Value;
         var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0");
-        var valueElement = cell.Element(NamespaceConstants.spreadsheet + "v");
-        var formulaElement = cell.Element(NamespaceConstants.spreadsheet + "f");
+        var valueElement = cell.Element(NamespaceConstants.Spreadsheet + "v");
+        var formulaElement = cell.Element(NamespaceConstants.Spreadsheet + "f");
 
         if (valueElement == null && formulaElement == null)
             return null;
@@ -1056,11 +1056,11 @@ public class XlsxProcessor : IXlsxProcessor
     {
         var mergeCellsDict = new Dictionary<string, string>();
 
-        var mergeCells = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "mergeCells");
+        var mergeCells = worksheetDoc.Root?.Element(NamespaceConstants.Spreadsheet + "mergeCells");
         if (mergeCells == null)
             return mergeCellsDict;
 
-        foreach (var mergeCell in mergeCells.Elements(NamespaceConstants.spreadsheet + "mergeCell"))
+        foreach (var mergeCell in mergeCells.Elements(NamespaceConstants.Spreadsheet + "mergeCell"))
         {
             var range = mergeCell.Attribute("ref")?.Value;
             if (string.IsNullOrEmpty(range))
@@ -1169,8 +1169,8 @@ public class XlsxProcessor : IXlsxProcessor
 
             var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
             var sheets = workbookDoc
-                .Descendants(NamespaceConstants.spreadsheet + "sheets")
-                .Elements(NamespaceConstants.spreadsheet + "sheet")
+                .Descendants(NamespaceConstants.Spreadsheet + "sheets")
+                .Elements(NamespaceConstants.Spreadsheet + "sheet")
                 .ToList();
 
             var sheetNumber = 1;
@@ -1192,4 +1192,25 @@ public class XlsxProcessor : IXlsxProcessor
             return 1;
         }
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting XLSX processing for {Path}")]
+    private static partial void LogStartingProcessing(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "No worksheets found in {Path}")]
+    private static partial void LogNoWorksheetsFound(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Successfully processed {Count} sheets")]
+    private static partial void LogProcessingSuccess(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Error processing XLSX file {Path}")]
+    private static partial void LogProcessingError(ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "No workbook part found in {Path}")]
+    private static partial void LogNoWorkbookPart(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Error processing drawings for sheet {SheetNumber}")]
+    private static partial void LogDrawingsError(ILogger logger, Exception ex, int sheetNumber);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Warning, Message = "Failed to resolve image path for embed ID {EmbedId}")]
+    private static partial void LogImagePathError(ILogger logger, Exception ex, string embedId);
 }

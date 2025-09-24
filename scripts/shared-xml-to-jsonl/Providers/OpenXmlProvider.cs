@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace SharedXmlToJsonl.Providers;
 
-public class OpenXmlProvider : IOpenXmlProvider
+public partial class OpenXmlProvider : IOpenXmlProvider
 {
     private readonly ILogger<OpenXmlProvider> _logger;
 
@@ -33,8 +33,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         if (!File.Exists(path))
             throw new FileNotFoundException($"Package file not found: {path}", path);
 
-        _logger.LogDebug("Opening package: {Path} with settings: FileMode={FileMode}, FileAccess={FileAccess}",
-            path, settings.FileMode, settings.FileAccess);
+        LogOpeningPackageWithSettings(_logger, path, settings.FileMode.ToString(), settings.FileAccess.ToString());
 
         try
         {
@@ -44,7 +43,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error opening package: {Path}", path);
+            LogErrorOpeningPackage(_logger, ex, path);
             throw;
         }
     }
@@ -69,7 +68,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting package part: {PartUri}", partUri);
+            LogErrorGettingPackagePart(_logger, ex, partUri);
             throw;
         }
     }
@@ -88,7 +87,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting relationships for part: {Uri}", part.Uri);
+            LogErrorGettingRelationships(_logger, ex, part.Uri.ToString());
             throw;
         }
     }
@@ -106,7 +105,7 @@ public class OpenXmlProvider : IOpenXmlProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting stream for part: {Uri}", part.Uri);
+            LogErrorGettingStreamForPart(_logger, ex, part.Uri.ToString());
             throw;
         }
     }
@@ -125,8 +124,50 @@ public class OpenXmlProvider : IOpenXmlProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading content from part: {Uri}", part.Uri);
+            LogErrorReadingContentFromPart(_logger, ex, part.Uri.ToString());
             throw;
         }
     }
+
+    [LoggerMessage(
+        EventId = 6001,
+        Level = LogLevel.Debug,
+        Message = "Opening package: {path} with settings: FileMode={fileMode}, FileAccess={fileAccess}")]
+    private static partial void LogOpeningPackageWithSettings(
+        ILogger logger, string path, string fileMode, string fileAccess);
+
+    [LoggerMessage(
+        EventId = 6002,
+        Level = LogLevel.Error,
+        Message = "Error opening package: {path}")]
+    private static partial void LogErrorOpeningPackage(
+        ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(
+        EventId = 6003,
+        Level = LogLevel.Error,
+        Message = "Error getting package part: {partUri}")]
+    private static partial void LogErrorGettingPackagePart(
+        ILogger logger, Exception ex, string partUri);
+
+    [LoggerMessage(
+        EventId = 6004,
+        Level = LogLevel.Error,
+        Message = "Error getting relationships for part: {uri}")]
+    private static partial void LogErrorGettingRelationships(
+        ILogger logger, Exception ex, string uri);
+
+    [LoggerMessage(
+        EventId = 6005,
+        Level = LogLevel.Error,
+        Message = "Error getting stream for part: {uri}")]
+    private static partial void LogErrorGettingStreamForPart(
+        ILogger logger, Exception ex, string uri);
+
+    [LoggerMessage(
+        EventId = 6006,
+        Level = LogLevel.Error,
+        Message = "Error reading content from part: {uri}")]
+    private static partial void LogErrorReadingContentFromPart(
+        ILogger logger, Exception ex, string uri);
 }

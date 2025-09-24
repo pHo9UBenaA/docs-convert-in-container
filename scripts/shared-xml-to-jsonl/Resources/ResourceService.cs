@@ -5,11 +5,23 @@ using Microsoft.Extensions.Logging;
 
 namespace SharedXmlToJsonl.Resources;
 
-public class ResourceService : IResourceService
+public partial class ResourceService : IResourceService
 {
     private readonly ResourceManager _errorMessages;
     private readonly ResourceManager _logMessages;
     private readonly ILogger<ResourceService> _logger;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Error retrieving error message for key: {Key}")]
+    private static partial void LogErrorRetrievingErrorMessage(ILogger logger, Exception exception, string key);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "Error retrieving log message for key: {Key}")]
+    private static partial void LogErrorRetrievingLogMessage(ILogger logger, Exception exception, string key);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Error, Message = "Error retrieving string from {Resource} for key: {Key}")]
+    private static partial void LogErrorRetrievingString(ILogger logger, Exception exception, string resource, string key);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Error trying to get string from {Resource} for key: {Key}")]
+    private static partial void LogErrorTryingToGetString(ILogger logger, Exception exception, string resource, string key);
 
     public ResourceService(ILogger<ResourceService> logger)
     {
@@ -39,7 +51,7 @@ public class ResourceService : IResourceService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving error message for key: {Key}", key);
+            LogErrorRetrievingErrorMessage(_logger, ex, key);
             return key;
         }
     }
@@ -58,7 +70,7 @@ public class ResourceService : IResourceService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving log message for key: {Key}", key);
+            LogErrorRetrievingLogMessage(_logger, ex, key);
             return key;
         }
     }
@@ -84,8 +96,7 @@ public class ResourceService : IResourceService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving string from {Resource} for key: {Key}",
-                resourceName, key);
+            LogErrorRetrievingString(_logger, ex, resourceName, key);
             return key;
         }
     }
@@ -108,8 +119,7 @@ public class ResourceService : IResourceService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error trying to get string from {Resource} for key: {Key}",
-                resourceName, key);
+            LogErrorTryingToGetString(_logger, ex, resourceName, key);
             return false;
         }
     }
