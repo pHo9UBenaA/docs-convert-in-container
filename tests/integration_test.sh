@@ -13,6 +13,7 @@ cleanup() {
     rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
+
 # Success message function
 success_message() {
     echo ""
