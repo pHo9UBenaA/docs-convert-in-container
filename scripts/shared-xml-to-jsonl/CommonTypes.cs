@@ -64,6 +64,14 @@ public record LineProperties(
 );
 
 /// <summary>
+/// Connection information for connectors
+/// </summary>
+public record ConnectionInfo(
+    string? ShapeId = null,
+    int? ConnectionSiteIndex = null
+);
+
+/// <summary>
 /// JSON serialization context for common types
 /// </summary>
 [JsonSerializable(typeof(Position))]
@@ -73,6 +81,7 @@ public record LineProperties(
 [JsonSerializable(typeof(CustomGeometry))]
 [JsonSerializable(typeof(TableCell))]
 [JsonSerializable(typeof(LineProperties))]
+[JsonSerializable(typeof(ConnectionInfo))]
 public partial class CommonJsonContext : JsonSerializerContext
 {
 }

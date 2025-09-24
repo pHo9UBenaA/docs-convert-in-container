@@ -687,6 +687,44 @@ public class XlsxProcessor : IXlsxProcessor
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
+        // Extract connection information
+        var cNvCxnSpPr = nvCxnSpPr?.Element(NamespaceConstants.XDR + "cNvCxnSpPr");
+        ConnectionInfo? startConnection = null;
+        ConnectionInfo? endConnection = null;
+
+        if (cNvCxnSpPr != null)
+        {
+            // Extract start connection
+            var stCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "stCxn");
+            if (stCxn != null)
+            {
+                var startId = stCxn.Attribute("id")?.Value;
+                var startIdx = stCxn.Attribute("idx")?.Value;
+                if (startId != null)
+                {
+                    startConnection = new ConnectionInfo(
+                        ShapeId: startId,
+                        ConnectionSiteIndex: int.TryParse(startIdx, out var idx) ? idx : null
+                    );
+                }
+            }
+
+            // Extract end connection
+            var endCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "endCxn");
+            if (endCxn != null)
+            {
+                var endId = endCxn.Attribute("id")?.Value;
+                var endIdx = endCxn.Attribute("idx")?.Value;
+                if (endId != null)
+                {
+                    endConnection = new ConnectionInfo(
+                        ShapeId: endId,
+                        ConnectionSiteIndex: int.TryParse(endIdx, out var idx) ? idx : null
+                    );
+                }
+            }
+        }
+
         var spPr = cxnSp.Element(NamespaceConstants.XDR + "spPr");
         var transform = ExtractTransformFromSpPr(spPr);
 
@@ -703,7 +741,9 @@ public class XlsxProcessor : IXlsxProcessor
             ShapeId = id,
             ShapeName = name,
             ShapeType = "connector",
-            Transform = transform
+            Transform = transform,
+            StartConnection = startConnection,
+            EndConnection = endConnection
         };
 
         // Set Value if text is present

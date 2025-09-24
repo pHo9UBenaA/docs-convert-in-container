@@ -429,6 +429,44 @@ public class PptxProcessor : IPptxProcessor
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
+        // Extract connection information
+        var cNvCxnPr = nvCxnSpPr?.Element(NamespaceConstants.p + "cNvCxnSpPr");
+        ConnectionInfo? startConnection = null;
+        ConnectionInfo? endConnection = null;
+
+        if (cNvCxnPr != null)
+        {
+            // Extract start connection
+            var stCxn = cNvCxnPr.Element(NamespaceConstants.a + "stCxn");
+            if (stCxn != null)
+            {
+                var startId = stCxn.Attribute("id")?.Value;
+                var startIdx = stCxn.Attribute("idx")?.Value;
+                if (startId != null)
+                {
+                    startConnection = new ConnectionInfo(
+                        ShapeId: startId,
+                        ConnectionSiteIndex: int.TryParse(startIdx, out var idx) ? idx : null
+                    );
+                }
+            }
+
+            // Extract end connection
+            var endCxn = cNvCxnPr.Element(NamespaceConstants.a + "endCxn");
+            if (endCxn != null)
+            {
+                var endId = endCxn.Attribute("id")?.Value;
+                var endIdx = endCxn.Attribute("idx")?.Value;
+                if (endId != null)
+                {
+                    endConnection = new ConnectionInfo(
+                        ShapeId: endId,
+                        ConnectionSiteIndex: int.TryParse(endIdx, out var idx) ? idx : null
+                    );
+                }
+            }
+        }
+
         var spPr = connectorElement.Element(NamespaceConstants.p + "spPr");
         var transform = ExtractTransform(spPr);
 
@@ -441,7 +479,9 @@ public class PptxProcessor : IPptxProcessor
             ShapeName = name,
             Transform = transform,
             ShapeType = "connector",
-            GroupLevel = 1
+            GroupLevel = 1,
+            StartConnection = startConnection,
+            EndConnection = endConnection
         };
     }
 

@@ -135,6 +135,12 @@ public class SlideElement
 
     [JsonPropertyName("error_info")]
     public string? ErrorInfo { get; set; }
+
+    [JsonPropertyName("start_connection")]
+    public ConnectionInfo? StartConnection { get; set; }
+
+    [JsonPropertyName("end_connection")]
+    public ConnectionInfo? EndConnection { get; set; }
 }
 
 /// <summary>
@@ -243,6 +249,12 @@ public class SheetElement
 
     [JsonPropertyName("anchor_to")]
     public CellAnchor? AnchorTo { get; set; }
+
+    [JsonPropertyName("start_connection")]
+    public ConnectionInfo? StartConnection { get; set; }
+
+    [JsonPropertyName("end_connection")]
+    public ConnectionInfo? EndConnection { get; set; }
 }
 
 /// <summary>
@@ -303,6 +315,7 @@ public class CellFormat
 [JsonSerializable(typeof(CellFormat))]
 [JsonSerializable(typeof(LineProperties))]
 [JsonSerializable(typeof(CellAnchor))]
+[JsonSerializable(typeof(ConnectionInfo))]
 [JsonSerializable(typeof(List<List<string>>))]
 [JsonSerializable(typeof(List<List<object?>>))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
