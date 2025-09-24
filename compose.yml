@@ -7,3 +7,12 @@ services:
       - ./logs:/logs
       - ./scripts:/scripts
     platform: linux/amd64
+
+  linter:
+    image: mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim
+    volumes:
+      - ./scripts:/scripts
+      - ./.editorconfig:/.editorconfig
+      - ./.config:/.config
+    working_dir: /scripts
+    platform: linux/amd64

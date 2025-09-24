@@ -1,0 +1,50 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_size = 4
+tab_width = 4
+
+# C# language rules
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Naming rules
+dotnet_naming_rule.public_members_must_be_capitalized.severity = warning
+dotnet_naming_rule.public_members_must_be_capitalized.symbols = public_symbols
+dotnet_naming_rule.public_members_must_be_capitalized.style = first_word_upper
+
+dotnet_naming_symbols.public_symbols.applicable_kinds = property,method,field,event,delegate
+dotnet_naming_symbols.public_symbols.applicable_accessibilities = public
+
+dotnet_naming_style.first_word_upper.required_prefix =
+dotnet_naming_style.first_word_upper.required_suffix =
+dotnet_naming_style.first_word_upper.word_separator =
+dotnet_naming_style.first_word_upper.capitalization = pascal_case
+
+# Security rules
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.CA3075.severity = error
+dotnet_diagnostic.CA5359.severity = error
+
+# Performance rules
+dotnet_diagnostic.CA1806.severity = warning
+dotnet_diagnostic.CA1829.severity = warning
+
+# Reliability rules
+dotnet_diagnostic.CA2000.severity = warning
+dotnet_diagnostic.CA2213.severity = warning
+
+[*.{xml,resx,ruleset}]
+indent_size = 2
+tab_width = 2
+
+[*.{json,jsonl}]
+indent_size = 2
+tab_width = 2

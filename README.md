@@ -14,9 +14,9 @@ docs/
 ├── presentation.pptx
 ├── presentation.pdf        # presentation.pptxから生成
 ├── presentation_png/       # presentation.pptxから生成
-│   ├── presentation-1.png
-│   ├── presentation-2.png
-│   └── presentation-3.png
+│   ├── slide-1.png
+│   ├── slide-2.png
+│   └── slide-3.png
 ├── presentation_jsonl/     # presentation.pptxから生成
 │   ├── slide-1.jsonl
 │   ├── slide-2.jsonl
@@ -24,33 +24,33 @@ docs/
 │
 ├── data.xlsx
 ├── data_csv/               # data.xlsxから生成
-│   ├── data_sheet1.csv
-│   └── data_sheet2.csv
+│   ├── sheet-Sheet1.csv    # シート名を使用
+│   └── sheet-Summary.csv   # シート名を使用
 ├── data_jsonl/             # data.xlsxから生成
-│   ├── sheet1.jsonl
-│   └── sheet2.jsonl
+│   ├── sheet-Sheet1.jsonl  # シート名を使用
+│   └── sheet-Summary.jsonl # シート名を使用
 │
 ├── project1/
 │   ├── report.pptx
 │   ├── report.pdf          # report.pptxから生成
 │   ├── report_png/         # report.pptxから生成
-│   │   ├── report-1.png
-│   │   └── report-2.png
+│   │   ├── slide-1.png
+│   │   └── slide-2.png
 │   ├── report_jsonl/       # report.pptxから生成
 │   │   ├── slide-1.jsonl
 │   │   └── slide-2.jsonl
 │   │
 │   ├── analysis.xlsx
 │   ├── analysis_csv/       # analysis.xlsxから生成
-│   │   └── analysis_sheet1.csv
+│   │   └── sheet-Data.csv  # シート名を使用
 │   └── analysis_jsonl/     # analysis.xlsxから生成
-│       └── sheet1.jsonl
+│       └── sheet-Data.jsonl # シート名を使用
 │
 └── archive/
     ├── old_document.pdf
     └── old_document_png/   # old_document.pdfから生成
-        ├── old_document-1.png
-        └── old_document-2.png
+        ├── page-1.png
+        └── page-2.png
 ```
 
 </details>
@@ -88,6 +88,24 @@ docs/
    docker compose run --rm converter bash generate-batch-and-run.sh docs/
    ```
    ※変換に失敗したファイルは `logs/batch-failed_<yyyyMMdd>.log` に書き込まれます
+
+## Development
+
+### Test
+
+```bash
+bash tests/integration_test.sh
+```
+
+### Lint / Format
+
+```bash
+# Lint
+docker compose run --rm linter bash -c "dotnet tool restore && for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Formatting \$dir...\"; cd /scripts/\$dir && dotnet format; cd /scripts; done"
+
+# Format
+docker compose run --rm linter bash -c "for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Building \$dir...\"; cd /scripts/\$dir && dotnet build; cd /scripts; done"
+```
 
 ## TODO
 
