@@ -105,7 +105,14 @@ public class XlsxProcessor : IXlsxProcessor
         List<SheetElement> sheetElements,
         CancellationToken cancellationToken)
     {
-        using var writer = new StreamWriter(outputPath);
+        await using var fileStream = new FileStream(
+            outputPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            useAsync: true);
+        await using var writer = new StreamWriter(fileStream);
 
         var options = new JsonSerializerOptions(ElementJsonSerializerContext.Default.SheetElement.Options)
         {

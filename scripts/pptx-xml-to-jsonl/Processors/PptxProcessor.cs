@@ -102,7 +102,14 @@ public class PptxProcessor : IPptxProcessor
         List<SlideElement> slideElements,
         CancellationToken cancellationToken)
     {
-        using var writer = new StreamWriter(outputPath);
+        await using var fileStream = new FileStream(
+            outputPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            useAsync: true);
+        await using var writer = new StreamWriter(fileStream);
 
         var options = new JsonSerializerOptions(ElementJsonSerializerContext.Default.SlideElement.Options)
         {
