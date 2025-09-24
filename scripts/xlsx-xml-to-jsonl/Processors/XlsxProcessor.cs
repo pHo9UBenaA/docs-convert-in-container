@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
@@ -57,7 +58,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         {
             var sheetDataByNumber = await ExtractSheetsAsync(inputPath, cancellationToken);
 
-            if (!sheetDataByNumber.Any())
+            if (sheetDataByNumber.Count == 0)
             {
                 if (_logger != null) LogNoWorksheetsFound(_logger, inputPath);
                 return new ProcessingResult
@@ -100,7 +101,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         }
     }
 
-    private async Task WriteSheetToFile(
+    private static async Task WriteSheetToFile(
         string outputPath,
         List<SheetElement> sheetElements,
         CancellationToken cancellationToken)
@@ -186,7 +187,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         }, cancellationToken);
     }
 
-    private Dictionary<int, string> LoadSharedStrings(Package package)
+    private static Dictionary<int, string> LoadSharedStrings(Package package)
     {
         var sharedStringsDict = new Dictionary<int, string>();
         var sharedStringsPart = PackageUtilities.GetSharedStringsPart(package);
@@ -208,7 +209,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         return sharedStringsDict;
     }
 
-    private HashSet<int> LoadDateFormats(Package package)
+    private static HashSet<int> LoadDateFormats(Package package)
     {
         var dateFormats = new HashSet<int>();
         var stylesPart = PackageUtilities.GetStylesPart(package);
@@ -221,7 +222,7 @@ public partial class XlsxProcessor : IXlsxProcessor
             var numFmts = stylesDoc
                 .Descendants(NamespaceConstants.Spreadsheet + "numFmt")
                 .Where(n => IsDateFormat(n.Attribute("formatCode")?.Value ?? ""))
-                .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0"));
+                .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0", CultureInfo.InvariantCulture));
 
             foreach (var numFmtId in numFmts)
             {
@@ -238,13 +239,13 @@ public partial class XlsxProcessor : IXlsxProcessor
         return dateFormats;
     }
 
-    private bool IsDateFormat(string formatCode)
+    private static bool IsDateFormat(string formatCode)
     {
         var dateIndicators = new[] { "mm", "dd", "yy", "hh", "ss", "AM/PM" };
         return dateIndicators.Any(indicator => formatCode.Contains(indicator, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string ExtractTextFromSi(XElement si)
+    private static string ExtractTextFromSi(XElement si)
     {
         var texts = new List<string>();
 
@@ -266,7 +267,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         return string.Join("", texts);
     }
 
-    private List<SheetElement> ProcessWorksheet(
+    private static List<SheetElement> ProcessWorksheet(
         XDocument worksheetDoc,
         Dictionary<int, string> sharedStrings,
         HashSet<int> dateFormats,
@@ -300,7 +301,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         // Process all cells
         foreach (var row in sheetData.Elements(NamespaceConstants.Spreadsheet + "row"))
         {
-            var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0");
+            var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0", CultureInfo.InvariantCulture);
 
             foreach (var cell in row.Elements(NamespaceConstants.Spreadsheet + "c"))
             {
@@ -490,10 +491,12 @@ public partial class XlsxProcessor : IXlsxProcessor
         return elements;
     }
 
+    private static readonly char[] second = new[] { '/', '\\', '*', '?', '"', '<', '>', '|', ':' };
+
     /// <summary>
     /// Extract two-cell anchor information
     /// </summary>
-    private (CellAnchor from, CellAnchor to) ExtractTwoCellAnchor(XElement twoCellAnchor)
+    private static (CellAnchor from, CellAnchor to) ExtractTwoCellAnchor(XElement twoCellAnchor)
     {
         var from = twoCellAnchor.Element(NamespaceConstants.XDR + "from");
         var to = twoCellAnchor.Element(NamespaceConstants.XDR + "to");
@@ -507,7 +510,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract one-cell anchor information
     /// </summary>
-    private CellAnchor ExtractOneCellAnchor(XElement oneCellAnchor)
+    private static CellAnchor ExtractOneCellAnchor(XElement oneCellAnchor)
     {
         var from = oneCellAnchor.Element(NamespaceConstants.XDR + "from");
         return ExtractCellAnchor(from);
@@ -516,15 +519,15 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract cell anchor details
     /// </summary>
-    private CellAnchor ExtractCellAnchor(XElement? anchorElement)
+    private static CellAnchor ExtractCellAnchor(XElement? anchorElement)
     {
         if (anchorElement == null)
             return new CellAnchor("", 0, 0, "", 0, 0);
 
-        var col = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "col")?.Value ?? "0");
-        var colOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "colOff")?.Value ?? "0");
-        var row = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "row")?.Value ?? "0");
-        var rowOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "rowOff")?.Value ?? "0");
+        var col = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "col")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var colOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "colOff")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var row = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "row")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var rowOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "rowOff")?.Value ?? "0", CultureInfo.InvariantCulture);
 
         var cellRef = GetCellReference(col + 1, row + 1); // Convert to 1-based
 
@@ -581,7 +584,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract shape element
     /// </summary>
-    private SheetElement? ExtractShapeElement(
+    private static SheetElement? ExtractShapeElement(
         XElement sp,
         int sheetNumber,
         string sheetName,
@@ -631,7 +634,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract graphic frame element (charts, etc.)
     /// </summary>
-    private SheetElement? ExtractGraphicFrameElement(
+    private static SheetElement? ExtractGraphicFrameElement(
         XElement graphicFrame,
         int sheetNumber,
         string sheetName,
@@ -676,7 +679,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract connector element
     /// </summary>
-    private SheetElement? ExtractConnectorElement(
+    private static SheetElement? ExtractConnectorElement(
         XElement cxnSp,
         int sheetNumber,
         string sheetName,
@@ -762,7 +765,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract transform from shape properties
     /// </summary>
-    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromSpPr(XElement? spPr)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransformFromSpPr(XElement? spPr)
     {
         if (spPr == null)
             return null;
@@ -774,7 +777,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract transform from xfrm element
     /// </summary>
-    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
     {
         if (xfrm == null)
             return null;
@@ -815,7 +818,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract text content from txBody element
     /// </summary>
-    private string? ExtractTextFromTxBody(XElement? txBody)
+    private static string? ExtractTextFromTxBody(XElement? txBody)
     {
         if (txBody == null)
             return null;
@@ -873,7 +876,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         }
     }
 
-    private SheetElement? ProcessCell(
+    private static SheetElement? ProcessCell(
         XElement cell,
         Dictionary<int, string> sharedStrings,
         HashSet<int> dateFormats,
@@ -889,7 +892,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         var column = GetColumnFromCellReference(cellRef);
 
         var cellType = cell.Attribute("t")?.Value;
-        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0");
+        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0", CultureInfo.InvariantCulture);
         var valueElement = cell.Element(NamespaceConstants.Spreadsheet + "v");
         var formulaElement = cell.Element(NamespaceConstants.Spreadsheet + "f");
 
@@ -901,37 +904,37 @@ public partial class XlsxProcessor : IXlsxProcessor
 
         if (valueElement != null)
         {
-            var value = valueElement.Value;
+            var cellValueText = valueElement.Value;
 
             switch (cellType)
             {
                 case "s": // Shared string
-                    if (int.TryParse(value, out int stringIndex) && sharedStrings.ContainsKey(stringIndex))
+                    if (int.TryParse(cellValueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int stringIndex) && sharedStrings.TryGetValue(stringIndex, out string? sharedValue))
                     {
-                        cellValue.Text = sharedStrings[stringIndex];
+                        cellValue.Text = sharedValue;
                         cellValue.ValueType = "text";
                     }
                     break;
 
                 case "b": // Boolean
-                    cellValue.Boolean = value == "1";
+                    cellValue.Boolean = cellValueText == "1";
                     cellValue.ValueType = "boolean";
                     break;
 
                 case "e": // Error
-                    cellValue.Text = value;
+                    cellValue.Text = cellValueText;
                     cellValue.ValueType = "error";
                     break;
 
                 case "str": // String (inline)
                 case "inlineStr":
-                    cellValue.Text = value;
+                    cellValue.Text = cellValueText;
                     cellValue.ValueType = "text";
                     break;
 
                 case "n": // Number (explicit)
                 default:
-                    if (double.TryParse(value, out double numberValue))
+                    if (double.TryParse(cellValueText, NumberStyles.Float | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out double numberValue))
                     {
                         // Check if it's a date based on format
                         if (dateFormats.Contains(styleIndex))
@@ -946,14 +949,14 @@ public partial class XlsxProcessor : IXlsxProcessor
 
                             // Also store text representation for compatibility
                             if (numberValue == Math.Floor(numberValue))
-                                cellValue.Text = ((int)numberValue).ToString();
+                                cellValue.Text = ((int)numberValue).ToString(CultureInfo.InvariantCulture);
                             else
-                                cellValue.Text = numberValue.ToString();
+                                cellValue.Text = numberValue.ToString(CultureInfo.InvariantCulture);
                         }
                     }
                     else
                     {
-                        cellValue.Text = value;
+                        cellValue.Text = cellValueText;
                         cellValue.ValueType = "text";
                     }
                     break;
@@ -980,9 +983,9 @@ public partial class XlsxProcessor : IXlsxProcessor
         };
 
         // Check if this cell is part of a merge range
-        if (mergeCells.ContainsKey(cellRef))
+        if (mergeCells.TryGetValue(cellRef, out string? value))
         {
-            var mergeRange = mergeCells[cellRef];
+            var mergeRange = value;
             var parentCell = GetMergeParentCell(mergeRange);
 
             element.IsMerged = true;
@@ -998,7 +1001,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         return element;
     }
 
-    private int GetColumnFromCellReference(string cellRef)
+    private static int GetColumnFromCellReference(string cellRef)
     {
         var column = 0;
         foreach (char c in cellRef)
@@ -1015,7 +1018,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         return column;
     }
 
-    private DateTime ConvertExcelDateToDateTime(double excelDate)
+    private static DateTime ConvertExcelDateToDateTime(double excelDate)
     {
         // Excel dates start from 1900-01-01 (with a leap year bug for 1900)
         if (excelDate < 60)
@@ -1024,10 +1027,10 @@ public partial class XlsxProcessor : IXlsxProcessor
             return new DateTime(1900, 1, 1).AddDays(excelDate - 2);
     }
 
-    private string SanitizeFileName(string fileName)
+    private static string SanitizeFileName(string fileName)
     {
         var invalidChars = Path.GetInvalidFileNameChars()
-            .Concat(new[] { '/', '\\', '*', '?', '"', '<', '>', '|', ':' })
+            .Concat(second)
             .Distinct()
             .ToArray();
 
@@ -1052,7 +1055,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Load merge cells information from worksheet
     /// </summary>
-    private Dictionary<string, string> LoadMergeCells(XDocument worksheetDoc)
+    private static Dictionary<string, string> LoadMergeCells(XDocument worksheetDoc)
     {
         var mergeCellsDict = new Dictionary<string, string>();
 
@@ -1088,7 +1091,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Get the parent cell (top-left) of a merge range
     /// </summary>
-    private string GetMergeParentCell(string mergeRange)
+    private static string GetMergeParentCell(string mergeRange)
     {
         var parts = mergeRange.Split(':');
         return parts.Length > 0 ? parts[0] : mergeRange;
@@ -1097,7 +1100,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Get all cell references within a range
     /// </summary>
-    private List<string> GetCellsInRange(string startCell, string endCell)
+    private static List<string> GetCellsInRange(string startCell, string endCell)
     {
         var cells = new List<string>();
 
@@ -1119,7 +1122,7 @@ public partial class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Parse a cell reference into column and row numbers
     /// </summary>
-    private (int col, int row) ParseCellReference(string cellRef)
+    private static (int col, int row) ParseCellReference(string cellRef)
     {
         int col = 0;
         int rowIndex = 0;
@@ -1135,14 +1138,14 @@ public partial class XlsxProcessor : IXlsxProcessor
             col = col * 26 + (cellRef[i] - 'A' + 1);
         }
 
-        int row = int.Parse(cellRef.Substring(rowIndex));
+        int row = int.Parse(cellRef.AsSpan(rowIndex), CultureInfo.InvariantCulture);
         return (col, row);
     }
 
     /// <summary>
     /// Get cell reference from column and row numbers
     /// </summary>
-    private string GetCellReference(int col, int row)
+    private static string GetCellReference(int col, int row)
     {
         string colStr = "";
         while (col > 0)
@@ -1154,7 +1157,7 @@ public partial class XlsxProcessor : IXlsxProcessor
         return colStr + row;
     }
 
-    public int ListSheetNames(string inputPath)
+    public static int ListSheetNames(string inputPath)
     {
         try
         {

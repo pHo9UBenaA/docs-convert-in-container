@@ -50,7 +50,7 @@ namespace PptxXmlToJsonl.Commands
             }
             else
             {
-                LogProcessingError(Logger, result.ErrorMessage);
+                LogProcessingError(Logger, result.ErrorMessage ?? "Unknown error");
                 return SharedXmlToJsonl.CommonBase.ExitProcessingError;
             }
         }

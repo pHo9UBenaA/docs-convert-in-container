@@ -6,58 +6,60 @@ using SharedXmlToJsonl;
 using SharedXmlToJsonl.DependencyInjection;
 using XlsxXmlToJsonl.Commands;
 
-public class Program
+namespace XlsxXmlToJsonl
 {
-    public static async Task<int> Main(string[] args)
+    public class Program
     {
-        if (args.Length < 1)
+        public static async Task<int> Main(string[] args)
         {
-            Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> [<output-directory>]");
-            Console.WriteLine("       xlsx-xml-to-jsonl --list-sheets <input-file.xlsx>");
-            return CommonBase.ExitUsageError;
-        }
-
-        // Check for --list-sheets option
-        if (args.Length >= 2 && args[0] == "--list-sheets")
-        {
-            var processor = new XlsxXmlToJsonl.Processors.XlsxProcessor(null!, null!, null!);
-            return processor.ListSheetNames(args[1]);
-        }
-
-        if (args.Length < 2)
-        {
-            Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> <output-directory>");
-            return CommonBase.ExitUsageError;
-        }
-
-        var inputPath = args[0];
-        var outputDirectory = args[1];
-
-        // Create and configure the host
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureServices((context, services) =>
+            if (args.Length < 1)
             {
-                // Add shared document processing services
-                services.AddDocumentProcessing(context.Configuration);
+                Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> [<output-directory>]");
+                Console.WriteLine("       xlsx-xml-to-jsonl --list-sheets <input-file.xlsx>");
+                return CommonBase.ExitUsageError;
+            }
 
-                // Add XLSX-specific services
-                services.AddScoped<XlsxXmlToJsonl.Processors.XlsxProcessor>();
-                services.AddScoped<SharedXmlToJsonl.Interfaces.IXlsxProcessor, XlsxXmlToJsonl.Processors.XlsxProcessor>();
-                services.AddScoped<ConvertXlsxCommand>();
-            })
-            .Build();
+            // Check for --list-sheets option
+            if (args.Length >= 2 && args[0] == "--list-sheets")
+            {
+                return XlsxXmlToJsonl.Processors.XlsxProcessor.ListSheetNames(args[1]);
+            }
 
-        // Execute the conversion
-        using var scope = host.Services.CreateScope();
-        var command = scope.ServiceProvider.GetRequiredService<ConvertXlsxCommand>();
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> <output-directory>");
+                return CommonBase.ExitUsageError;
+            }
 
-        var options = new ConvertXlsxOptions
-        {
-            InputPath = inputPath,
-            OutputDirectory = outputDirectory,
-            Verbose = false
-        };
+            var inputPath = args[0];
+            var outputDirectory = args[1];
 
-        return await command.ExecuteAsync(options);
+            // Create and configure the host
+            var host = Host.CreateDefaultBuilder(args)
+                .ConfigureServices((context, services) =>
+                {
+                    // Add shared document processing services
+                    services.AddDocumentProcessing(context.Configuration);
+
+                    // Add XLSX-specific services
+                    services.AddScoped<XlsxXmlToJsonl.Processors.XlsxProcessor>();
+                    services.AddScoped<SharedXmlToJsonl.Interfaces.IXlsxProcessor, XlsxXmlToJsonl.Processors.XlsxProcessor>();
+                    services.AddScoped<ConvertXlsxCommand>();
+                })
+                .Build();
+
+            // Execute the conversion
+            using var scope = host.Services.CreateScope();
+            var command = scope.ServiceProvider.GetRequiredService<ConvertXlsxCommand>();
+
+            var options = new ConvertXlsxOptions
+            {
+                InputPath = inputPath,
+                OutputDirectory = outputDirectory,
+                Verbose = false
+            };
+
+            return await command.ExecuteAsync(options);
+        }
     }
 }

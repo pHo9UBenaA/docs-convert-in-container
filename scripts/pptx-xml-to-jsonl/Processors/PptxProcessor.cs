@@ -57,7 +57,7 @@ public partial class PptxProcessor : IPptxProcessor
         {
             var slideDataByNumber = await ExtractSlidesAsync(inputPath, cancellationToken);
 
-            if (!slideDataByNumber.Any())
+            if (slideDataByNumber.Count == 0)
             {
                 LogNoSlidesFound(_logger, inputPath);
                 return new ProcessingResult
@@ -97,7 +97,7 @@ public partial class PptxProcessor : IPptxProcessor
         }
     }
 
-    private async Task WriteSlideToFile(
+    private static async Task WriteSlideToFile(
         string outputPath,
         List<SlideElement> slideElements,
         CancellationToken cancellationToken)
@@ -169,7 +169,7 @@ public partial class PptxProcessor : IPptxProcessor
         }, cancellationToken);
     }
 
-    private List<SlideElement> ExtractSlideElements(XDocument slideDoc, int slideNumber)
+    private static List<SlideElement> ExtractSlideElements(XDocument slideDoc, int slideNumber)
     {
         var elements = new List<SlideElement>();
         var elementIndex = 0;
@@ -224,7 +224,7 @@ public partial class PptxProcessor : IPptxProcessor
         return elements;
     }
 
-    private List<SlideElement> ProcessShape(XElement shapeElement, int slideNumber, ref int elementIndex)
+    private static List<SlideElement> ProcessShape(XElement shapeElement, int slideNumber, ref int elementIndex)
     {
         var elements = new List<SlideElement>();
 
@@ -291,7 +291,7 @@ public partial class PptxProcessor : IPptxProcessor
         return elements;
     }
 
-    private SharedXmlToJsonl.Models.Transform? ExtractTransform(XElement? spPr)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransform(XElement? spPr)
     {
         if (spPr == null)
             return null;
@@ -327,7 +327,7 @@ public partial class PptxProcessor : IPptxProcessor
         return transform;
     }
 
-    private List<SlideElement> ProcessGraphicFrame(XElement graphicFrame, int slideNumber, ref int elementIndex)
+    private static List<SlideElement> ProcessGraphicFrame(XElement graphicFrame, int slideNumber, ref int elementIndex)
     {
         var elements = new List<SlideElement>();
 
@@ -390,7 +390,7 @@ public partial class PptxProcessor : IPptxProcessor
         return elements;
     }
 
-    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
     {
         if (xfrm == null)
             return null;
@@ -422,7 +422,7 @@ public partial class PptxProcessor : IPptxProcessor
         return transform;
     }
 
-    private SlideElement? ProcessConnector(XElement connectorElement, int slideNumber, ref int elementIndex)
+    private static SlideElement? ProcessConnector(XElement connectorElement, int slideNumber, ref int elementIndex)
     {
         var nvCxnSpPr = connectorElement.Element(NamespaceConstants.P + "nvCxnSpPr");
         var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.P + "cNvPr");
@@ -485,7 +485,7 @@ public partial class PptxProcessor : IPptxProcessor
         };
     }
 
-    private SlideElement? ProcessPicture(XElement pictureElement, int slideNumber, ref int elementIndex)
+    private static SlideElement? ProcessPicture(XElement pictureElement, int slideNumber, ref int elementIndex)
     {
         var nvPicPr = pictureElement.Element(NamespaceConstants.P + "nvPicPr");
         var cNvPr = nvPicPr?.Element(NamespaceConstants.P + "cNvPr");
@@ -510,7 +510,7 @@ public partial class PptxProcessor : IPptxProcessor
         };
     }
 
-    private string ExtractParagraphText(XElement paragraph)
+    private static string ExtractParagraphText(XElement paragraph)
     {
         var paragraphText = new List<string>();
         foreach (var run in paragraph.Elements(NamespaceConstants.A + "r"))
@@ -523,7 +523,7 @@ public partial class PptxProcessor : IPptxProcessor
         return string.Join("", paragraphText);
     }
 
-    private string ExtractTextContent(XElement? txBody)
+    private static string ExtractTextContent(XElement? txBody)
     {
         if (txBody == null)
             return string.Empty;

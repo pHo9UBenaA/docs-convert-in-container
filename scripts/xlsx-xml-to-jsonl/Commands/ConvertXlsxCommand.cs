@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,7 @@ namespace XlsxXmlToJsonl.Commands
             }
             else
             {
-                LogProcessingError(Logger, result.ErrorMessage);
+                LogProcessingError(Logger, result.ErrorMessage ?? "Unknown error");
                 return SharedXmlToJsonl.CommonBase.ExitProcessingError;
             }
         }
@@ -86,7 +87,7 @@ namespace XlsxXmlToJsonl.Commands
             if (options.Verbose)
             {
                 LogOptionsMain(Logger, options.MaxSheets, options.IncludeHiddenSheets, options.ExtractFormulas, options.ExtractValues);
-                LogSheetRange(Logger, options.StartSheetIndex, options.EndSheetIndex == -1 ? "all" : options.EndSheetIndex.ToString());
+                LogSheetRange(Logger, options.StartSheetIndex, options.EndSheetIndex == -1 ? "all" : options.EndSheetIndex.ToString(CultureInfo.InvariantCulture));
             }
             return Task.CompletedTask;
         }

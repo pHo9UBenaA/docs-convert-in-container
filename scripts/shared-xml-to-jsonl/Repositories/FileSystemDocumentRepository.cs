@@ -128,7 +128,7 @@ public partial class FileSystemDocumentRepository : IDocumentRepository
         try
         {
             await using var stream = await OpenWriteStreamAsync(path, cancellationToken).ConfigureAwait(false);
-            await stream.WriteAsync(content, 0, content.Length, cancellationToken).ConfigureAwait(false);
+            await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
 
             LogDocumentSavedSuccessfully(_logger, path, content.Length);
