@@ -410,7 +410,7 @@ public class XlsxProcessor : IXlsxProcessor
             {
                 var anchorInfo = ExtractOneCellAnchor(oneCellAnchor);
 
-                // Process elements similar to two-cell anchor
+                // Process picture elements
                 var pic = oneCellAnchor.Element(NamespaceConstants.XDR + "pic");
                 if (pic != null)
                 {
@@ -420,6 +420,48 @@ public class XlsxProcessor : IXlsxProcessor
                         pictureElement.AnchorType = "oneCellAnchor";
                         pictureElement.AnchorFrom = anchorInfo;
                         elements.Add(pictureElement);
+                    }
+                }
+
+                // Process shape elements
+                var sp = oneCellAnchor.Element(NamespaceConstants.XDR + "sp");
+                if (sp != null)
+                {
+                    var shapeElement = ExtractShapeElement(sp, sheetNumber, sheetName, ref elementIndex);
+                    if (shapeElement != null)
+                    {
+                        shapeElement.AnchorType = "oneCellAnchor";
+                        shapeElement.AnchorFrom = anchorInfo;
+                        elements.Add(shapeElement);
+                    }
+                }
+
+                // Process group shape elements
+                var grpSp = oneCellAnchor.Element(NamespaceConstants.XDR + "grpSp");
+                if (grpSp != null)
+                {
+                    // Process shapes within the group
+                    foreach (var groupedSp in grpSp.Elements(NamespaceConstants.XDR + "sp"))
+                    {
+                        var groupedShapeElement = ExtractShapeElement(groupedSp, sheetNumber, sheetName, ref elementIndex);
+                        if (groupedShapeElement != null)
+                        {
+                            groupedShapeElement.AnchorType = "oneCellAnchor";
+                            groupedShapeElement.AnchorFrom = anchorInfo;
+                            elements.Add(groupedShapeElement);
+                        }
+                    }
+
+                    // Process connectors within the group
+                    foreach (var cxnSp in grpSp.Elements(NamespaceConstants.XDR + "cxnSp"))
+                    {
+                        var connectorElement = ExtractConnectorElement(cxnSp, sheetNumber, sheetName, ref elementIndex);
+                        if (connectorElement != null)
+                        {
+                            connectorElement.AnchorType = "oneCellAnchor";
+                            connectorElement.AnchorFrom = anchorInfo;
+                            elements.Add(connectorElement);
+                        }
                     }
                 }
             }
@@ -557,7 +599,11 @@ public class XlsxProcessor : IXlsxProcessor
         var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
-        return new SheetElement
+        // Extract text from txBody element
+        var txBody = sp.Element(NamespaceConstants.XDR + "txBody");
+        var text = ExtractTextFromTxBody(txBody);
+
+        var sheetElement = new SheetElement
         {
             SheetNumber = sheetNumber,
             SheetName = sheetName,
@@ -568,6 +614,18 @@ public class XlsxProcessor : IXlsxProcessor
             ShapeType = shapeType,
             Transform = transform
         };
+
+        // Set Value if text is present
+        if (!string.IsNullOrEmpty(text))
+        {
+            sheetElement.Value = new CellValue
+            {
+                Text = text,
+                ValueType = "text"
+            };
+        }
+
+        return sheetElement;
     }
 
     /// <summary>
@@ -632,7 +690,11 @@ public class XlsxProcessor : IXlsxProcessor
         var spPr = cxnSp.Element(NamespaceConstants.XDR + "spPr");
         var transform = ExtractTransformFromSpPr(spPr);
 
-        return new SheetElement
+        // Extract text from txBody element
+        var txBody = cxnSp.Element(NamespaceConstants.XDR + "txBody");
+        var text = ExtractTextFromTxBody(txBody);
+
+        var sheetElement = new SheetElement
         {
             SheetNumber = sheetNumber,
             SheetName = sheetName,
@@ -643,6 +705,18 @@ public class XlsxProcessor : IXlsxProcessor
             ShapeType = "connector",
             Transform = transform
         };
+
+        // Set Value if text is present
+        if (!string.IsNullOrEmpty(text))
+        {
+            sheetElement.Value = new CellValue
+            {
+                Text = text,
+                ValueType = "text"
+            };
+        }
+
+        return sheetElement;
     }
 
     /// <summary>
@@ -696,6 +770,43 @@ public class XlsxProcessor : IXlsxProcessor
         }
 
         return transform;
+    }
+
+    /// <summary>
+    /// Extract text content from txBody element
+    /// </summary>
+    private string? ExtractTextFromTxBody(XElement? txBody)
+    {
+        if (txBody == null)
+            return null;
+
+        var paragraphs = txBody.Elements(NamespaceConstants.a + "p");
+        var textParts = new List<string>();
+
+        foreach (var paragraph in paragraphs)
+        {
+            var paragraphText = new List<string>();
+            var runs = paragraph.Elements(NamespaceConstants.a + "r");
+
+            foreach (var run in runs)
+            {
+                var textElement = run.Element(NamespaceConstants.a + "t");
+                if (textElement != null)
+                {
+                    paragraphText.Add(textElement.Value);
+                }
+            }
+
+            if (paragraphText.Count > 0)
+            {
+                textParts.Add(string.Join("", paragraphText));
+            }
+        }
+
+        if (textParts.Count == 0)
+            return null;
+
+        return string.Join("\n", textParts);
     }
 
     /// <summary>
