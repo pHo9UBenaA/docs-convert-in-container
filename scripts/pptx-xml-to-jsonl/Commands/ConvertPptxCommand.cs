@@ -36,7 +36,7 @@ namespace PptxXmlToJsonl.Commands
             ConvertPptxOptions options,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Starting PPTX conversion for {InputPath}", options.InputPath);
+            Logger.LogInformation("Starting PPTX conversion for {InputPath}", options.InputPath);
 
             var result = await _processor.ProcessAsync(
                 options.InputPath,
@@ -45,12 +45,12 @@ namespace PptxXmlToJsonl.Commands
 
             if (result.Success)
             {
-                _logger.LogInformation("Successfully processed {ItemsCount} items", result.ItemsProcessed);
+                Logger.LogInformation("Successfully processed {ItemsCount} items", result.ItemsProcessed);
                 return SharedXmlToJsonl.CommonBase.ExitSuccess;
             }
             else
             {
-                _logger.LogError("Processing failed: {ErrorMessage}", result.ErrorMessage);
+                Logger.LogError("Processing failed: {ErrorMessage}", result.ErrorMessage);
                 return SharedXmlToJsonl.CommonBase.ExitProcessingError;
             }
         }
@@ -70,7 +70,7 @@ namespace PptxXmlToJsonl.Commands
         {
             if (options.Verbose)
             {
-                _logger.LogDebug("Options: MaxSlides={MaxSlides}, IncludeHiddenSlides={IncludeHidden}, ExtractShapes={ExtractShapes}, ExtractText={ExtractText}",
+                Logger.LogDebug("Options: MaxSlides={MaxSlides}, IncludeHiddenSlides={IncludeHidden}, ExtractShapes={ExtractShapes}, ExtractText={ExtractText}",
                     options.MaxSlides, options.IncludeHiddenSlides, options.ExtractShapes, options.ExtractText);
             }
             return Task.CompletedTask;

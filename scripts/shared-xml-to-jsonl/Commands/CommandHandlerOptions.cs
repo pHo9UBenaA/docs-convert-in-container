@@ -80,6 +80,6 @@ namespace SharedXmlToJsonl.Commands
         /// <summary>
         /// Gets a value indicating whether the validation passed (no errors).
         /// </summary>
-        public bool IsValid => !Errors.Any();
+        public bool IsValid => Errors.Count == 0;
     }
 }

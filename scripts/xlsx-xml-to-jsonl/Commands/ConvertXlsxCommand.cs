@@ -36,7 +36,7 @@ namespace XlsxXmlToJsonl.Commands
             ConvertXlsxOptions options,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Starting XLSX conversion for {InputPath}", options.InputPath);
+            Logger.LogInformation("Starting XLSX conversion for {InputPath}", options.InputPath);
 
             var result = await _processor.ProcessAsync(
                 options.InputPath,
@@ -45,12 +45,12 @@ namespace XlsxXmlToJsonl.Commands
 
             if (result.Success)
             {
-                _logger.LogInformation("Successfully processed {ItemsCount} sheets", result.ItemsProcessed);
+                Logger.LogInformation("Successfully processed {ItemsCount} sheets", result.ItemsProcessed);
                 return SharedXmlToJsonl.CommonBase.ExitSuccess;
             }
             else
             {
-                _logger.LogError("Processing failed: {ErrorMessage}", result.ErrorMessage);
+                Logger.LogError("Processing failed: {ErrorMessage}", result.ErrorMessage);
                 return SharedXmlToJsonl.CommonBase.ExitProcessingError;
             }
         }
@@ -70,9 +70,9 @@ namespace XlsxXmlToJsonl.Commands
         {
             if (options.Verbose)
             {
-                _logger.LogDebug("Options: MaxSheets={MaxSheets}, IncludeHiddenSheets={IncludeHidden}, ExtractFormulas={ExtractFormulas}, ExtractValues={ExtractValues}",
+                Logger.LogDebug("Options: MaxSheets={MaxSheets}, IncludeHiddenSheets={IncludeHidden}, ExtractFormulas={ExtractFormulas}, ExtractValues={ExtractValues}",
                     options.MaxSheets, options.IncludeHiddenSheets, options.ExtractFormulas, options.ExtractValues);
-                _logger.LogDebug("Sheet range: {StartIndex} to {EndIndex}",
+                Logger.LogDebug("Sheet range: {StartIndex} to {EndIndex}",
                     options.StartSheetIndex, options.EndSheetIndex == -1 ? "all" : options.EndSheetIndex.ToString());
             }
             return Task.CompletedTask;

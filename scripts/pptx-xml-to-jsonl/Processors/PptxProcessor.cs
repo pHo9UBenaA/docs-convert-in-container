@@ -141,8 +141,8 @@ public class PptxProcessor : IPptxProcessor
 
             var presentationDoc = PackageUtilities.GetXDocument(presentationPart);
             var slideIds = presentationDoc
-                .Descendants(NamespaceConstants.p + "sldIdLst")
-                .Elements(NamespaceConstants.p + "sldId")
+                .Descendants(NamespaceConstants.P + "sldIdLst")
+                .Elements(NamespaceConstants.P + "sldId")
                 .ToList();
 
             var slideNumber = 1;
@@ -150,7 +150,7 @@ public class PptxProcessor : IPptxProcessor
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var rId = slideId.Attribute(NamespaceConstants.r + "id")?.Value;
+                var rId = slideId.Attribute(NamespaceConstants.R + "id")?.Value;
                 if (string.IsNullOrEmpty(rId))
                     continue;
 
@@ -183,11 +183,11 @@ public class PptxProcessor : IPptxProcessor
             Metadata = new Dictionary<string, object> { ["slide_number"] = slideNumber }
         });
 
-        var cSld = slideDoc.Root?.Element(NamespaceConstants.p + "cSld");
+        var cSld = slideDoc.Root?.Element(NamespaceConstants.P + "cSld");
         if (cSld == null)
             return elements;
 
-        var spTree = cSld.Element(NamespaceConstants.p + "spTree");
+        var spTree = cSld.Element(NamespaceConstants.P + "spTree");
         if (spTree == null)
             return elements;
 
@@ -228,23 +228,23 @@ public class PptxProcessor : IPptxProcessor
     {
         var elements = new List<SlideElement>();
 
-        var nvSpPr = shapeElement.Element(NamespaceConstants.p + "nvSpPr");
-        var cNvPr = nvSpPr?.Element(NamespaceConstants.p + "cNvPr");
+        var nvSpPr = shapeElement.Element(NamespaceConstants.P + "nvSpPr");
+        var cNvPr = nvSpPr?.Element(NamespaceConstants.P + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
-        var spPr = shapeElement.Element(NamespaceConstants.p + "spPr");
+        var spPr = shapeElement.Element(NamespaceConstants.P + "spPr");
         var transform = ExtractTransform(spPr);
 
         // Extract shape type
-        var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
+        var prstGeom = spPr?.Element(NamespaceConstants.A + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
         // Extract line properties
-        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, NamespaceConstants.a);
+        var lineProperties = ShapeProcessor.ExtractLineProperties(spPr, NamespaceConstants.A);
 
         // Extract fill information
-        var (hasFill, fillColor) = ShapeProcessor.ExtractFillInfo(spPr, NamespaceConstants.a);
+        var (hasFill, fillColor) = ShapeProcessor.ExtractFillInfo(spPr, NamespaceConstants.A);
 
         // Add shape element
         var shapeEl = new SlideElement
@@ -264,10 +264,10 @@ public class PptxProcessor : IPptxProcessor
         elements.Add(shapeEl);
 
         // Extract text content - each paragraph as separate element
-        var txBody = shapeElement.Element(NamespaceConstants.p + "txBody");
+        var txBody = shapeElement.Element(NamespaceConstants.P + "txBody");
         if (txBody != null)
         {
-            foreach (var paragraph in txBody.Elements(NamespaceConstants.a + "p"))
+            foreach (var paragraph in txBody.Elements(NamespaceConstants.A + "p"))
             {
                 var paragraphText = ExtractParagraphText(paragraph);
                 if (!string.IsNullOrEmpty(paragraphText))
@@ -296,13 +296,13 @@ public class PptxProcessor : IPptxProcessor
         if (spPr == null)
             return null;
 
-        var xfrm = spPr.Element(NamespaceConstants.a + "xfrm");
+        var xfrm = spPr.Element(NamespaceConstants.A + "xfrm");
         if (xfrm == null)
             return null;
 
         var transform = new SharedXmlToJsonl.Models.Transform();
 
-        var off = xfrm.Element(NamespaceConstants.a + "off");
+        var off = xfrm.Element(NamespaceConstants.A + "off");
         if (off != null)
         {
             var x = off.Attribute("x")?.Value;
@@ -313,7 +313,7 @@ public class PptxProcessor : IPptxProcessor
             }
         }
 
-        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        var ext = xfrm.Element(NamespaceConstants.A + "ext");
         if (ext != null)
         {
             var cx = ext.Attribute("cx")?.Value;
@@ -331,21 +331,21 @@ public class PptxProcessor : IPptxProcessor
     {
         var elements = new List<SlideElement>();
 
-        var nvGraphicFramePr = graphicFrame.Element(NamespaceConstants.p + "nvGraphicFramePr");
-        var cNvPr = nvGraphicFramePr?.Element(NamespaceConstants.p + "cNvPr");
+        var nvGraphicFramePr = graphicFrame.Element(NamespaceConstants.P + "nvGraphicFramePr");
+        var cNvPr = nvGraphicFramePr?.Element(NamespaceConstants.P + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
-        var xfrm = graphicFrame.Element(NamespaceConstants.p + "xfrm");
+        var xfrm = graphicFrame.Element(NamespaceConstants.P + "xfrm");
         var transform = ExtractTransformFromXfrm(xfrm);
 
-        var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
-        var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
+        var graphic = graphicFrame.Element(NamespaceConstants.A + "graphic");
+        var graphicData = graphic?.Element(NamespaceConstants.A + "graphicData");
 
         if (graphicData == null)
             return elements;
 
-        var tbl = graphicData.Element(NamespaceConstants.a + "tbl");
+        var tbl = graphicData.Element(NamespaceConstants.A + "tbl");
         if (tbl != null)
         {
             var tableElement = new SlideElement
@@ -362,11 +362,11 @@ public class PptxProcessor : IPptxProcessor
             elements.Add(tableElement);
 
             // Process table rows
-            foreach (var tr in tbl.Elements(NamespaceConstants.a + "tr"))
+            foreach (var tr in tbl.Elements(NamespaceConstants.A + "tr"))
             {
-                foreach (var tc in tr.Elements(NamespaceConstants.a + "tc"))
+                foreach (var tc in tr.Elements(NamespaceConstants.A + "tc"))
                 {
-                    var txBody = tc.Element(NamespaceConstants.a + "txBody");
+                    var txBody = tc.Element(NamespaceConstants.A + "txBody");
                     var cellText = ExtractTextContent(txBody);
                     if (!string.IsNullOrEmpty(cellText))
                     {
@@ -397,7 +397,7 @@ public class PptxProcessor : IPptxProcessor
 
         var transform = new SharedXmlToJsonl.Models.Transform();
 
-        var off = xfrm.Element(NamespaceConstants.a + "off");
+        var off = xfrm.Element(NamespaceConstants.A + "off");
         if (off != null)
         {
             var x = off.Attribute("x")?.Value;
@@ -408,7 +408,7 @@ public class PptxProcessor : IPptxProcessor
             }
         }
 
-        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        var ext = xfrm.Element(NamespaceConstants.A + "ext");
         if (ext != null)
         {
             var cx = ext.Attribute("cx")?.Value;
@@ -424,20 +424,20 @@ public class PptxProcessor : IPptxProcessor
 
     private SlideElement? ProcessConnector(XElement connectorElement, int slideNumber, ref int elementIndex)
     {
-        var nvCxnSpPr = connectorElement.Element(NamespaceConstants.p + "nvCxnSpPr");
-        var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.p + "cNvPr");
+        var nvCxnSpPr = connectorElement.Element(NamespaceConstants.P + "nvCxnSpPr");
+        var cNvPr = nvCxnSpPr?.Element(NamespaceConstants.P + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
 
         // Extract connection information
-        var cNvCxnPr = nvCxnSpPr?.Element(NamespaceConstants.p + "cNvCxnSpPr");
+        var cNvCxnPr = nvCxnSpPr?.Element(NamespaceConstants.P + "cNvCxnSpPr");
         ConnectionInfo? startConnection = null;
         ConnectionInfo? endConnection = null;
 
         if (cNvCxnPr != null)
         {
             // Extract start connection
-            var stCxn = cNvCxnPr.Element(NamespaceConstants.a + "stCxn");
+            var stCxn = cNvCxnPr.Element(NamespaceConstants.A + "stCxn");
             if (stCxn != null)
             {
                 var startId = stCxn.Attribute("id")?.Value;
@@ -452,7 +452,7 @@ public class PptxProcessor : IPptxProcessor
             }
 
             // Extract end connection
-            var endCxn = cNvCxnPr.Element(NamespaceConstants.a + "endCxn");
+            var endCxn = cNvCxnPr.Element(NamespaceConstants.A + "endCxn");
             if (endCxn != null)
             {
                 var endId = endCxn.Attribute("id")?.Value;
@@ -467,7 +467,7 @@ public class PptxProcessor : IPptxProcessor
             }
         }
 
-        var spPr = connectorElement.Element(NamespaceConstants.p + "spPr");
+        var spPr = connectorElement.Element(NamespaceConstants.P + "spPr");
         var transform = ExtractTransform(spPr);
 
         return new SlideElement
@@ -487,13 +487,13 @@ public class PptxProcessor : IPptxProcessor
 
     private SlideElement? ProcessPicture(XElement pictureElement, int slideNumber, ref int elementIndex)
     {
-        var nvPicPr = pictureElement.Element(NamespaceConstants.p + "nvPicPr");
-        var cNvPr = nvPicPr?.Element(NamespaceConstants.p + "cNvPr");
+        var nvPicPr = pictureElement.Element(NamespaceConstants.P + "nvPicPr");
+        var cNvPr = nvPicPr?.Element(NamespaceConstants.P + "cNvPr");
         var id = cNvPr?.Attribute("id")?.Value ?? "";
         var name = cNvPr?.Attribute("name")?.Value ?? "";
         var descr = cNvPr?.Attribute("descr")?.Value;
 
-        var spPr = pictureElement.Element(NamespaceConstants.p + "spPr");
+        var spPr = pictureElement.Element(NamespaceConstants.P + "spPr");
         var transform = ExtractTransform(spPr);
 
         return new SlideElement
@@ -513,9 +513,9 @@ public class PptxProcessor : IPptxProcessor
     private string ExtractParagraphText(XElement paragraph)
     {
         var paragraphText = new List<string>();
-        foreach (var run in paragraph.Elements(NamespaceConstants.a + "r"))
+        foreach (var run in paragraph.Elements(NamespaceConstants.A + "r"))
         {
-            var text = run.Element(NamespaceConstants.a + "t")?.Value;
+            var text = run.Element(NamespaceConstants.A + "t")?.Value;
             if (!string.IsNullOrEmpty(text))
                 paragraphText.Add(text);
         }
@@ -529,7 +529,7 @@ public class PptxProcessor : IPptxProcessor
             return string.Empty;
 
         var texts = new List<string>();
-        foreach (var paragraph in txBody.Elements(NamespaceConstants.a + "p"))
+        foreach (var paragraph in txBody.Elements(NamespaceConstants.A + "p"))
         {
             var paragraphText = ExtractParagraphText(paragraph);
             if (!string.IsNullOrEmpty(paragraphText))

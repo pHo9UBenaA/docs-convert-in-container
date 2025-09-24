@@ -31,7 +31,7 @@ public class ParallelProcessor : IParallelProcessor
         if (processItem == null) throw new ArgumentNullException(nameof(processItem));
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return;
+        if (itemList.Count == 0) return;
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task>();
@@ -72,7 +72,7 @@ public class ParallelProcessor : IParallelProcessor
         if (resultHandler == null) throw new ArgumentNullException(nameof(resultHandler));
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return;
+        if (itemList.Count == 0) return;
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task>();
@@ -116,7 +116,7 @@ public class ParallelProcessor : IParallelProcessor
         if (processItem == null) throw new ArgumentNullException(nameof(processItem));
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return Array.Empty<TResult>();
+        if (itemList.Count == 0) return Array.Empty<TResult>();
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task<TResult>>();

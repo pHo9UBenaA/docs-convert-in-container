@@ -161,7 +161,7 @@ public class XlsxProcessor : IXlsxProcessor
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var sheetName = sheet.Attribute("name")?.Value ?? $"Sheet{sheetNumber}";
-                var rId = sheet.Attribute(NamespaceConstants.r + "id")?.Value;
+                var rId = sheet.Attribute(NamespaceConstants.R + "id")?.Value;
 
                 if (string.IsNullOrEmpty(rId))
                     continue;
@@ -550,8 +550,8 @@ public class XlsxProcessor : IXlsxProcessor
 
         // Get image reference
         var blipFill = pic.Element(NamespaceConstants.XDR + "blipFill");
-        var blip = blipFill?.Element(NamespaceConstants.a + "blip");
-        var embedId = blip?.Attribute(NamespaceConstants.r + "embed")?.Value;
+        var blip = blipFill?.Element(NamespaceConstants.A + "blip");
+        var embedId = blip?.Attribute(NamespaceConstants.R + "embed")?.Value;
 
         string? imagePath = null;
         if (!string.IsNullOrEmpty(embedId))
@@ -596,7 +596,7 @@ public class XlsxProcessor : IXlsxProcessor
         var transform = ExtractTransformFromSpPr(spPr);
 
         // Get shape type
-        var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
+        var prstGeom = spPr?.Element(NamespaceConstants.A + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
         // Extract text from txBody element
@@ -646,8 +646,8 @@ public class XlsxProcessor : IXlsxProcessor
         var transform = ExtractTransformFromXfrm(xfrm);
 
         // Determine the type of graphic
-        var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
-        var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
+        var graphic = graphicFrame.Element(NamespaceConstants.A + "graphic");
+        var graphicData = graphic?.Element(NamespaceConstants.A + "graphicData");
         var uri = graphicData?.Attribute("uri")?.Value;
 
         string? graphicType = "graphic";
@@ -695,7 +695,7 @@ public class XlsxProcessor : IXlsxProcessor
         if (cNvCxnSpPr != null)
         {
             // Extract start connection
-            var stCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "stCxn");
+            var stCxn = cNvCxnSpPr.Element(NamespaceConstants.A + "stCxn");
             if (stCxn != null)
             {
                 var startId = stCxn.Attribute("id")?.Value;
@@ -710,7 +710,7 @@ public class XlsxProcessor : IXlsxProcessor
             }
 
             // Extract end connection
-            var endCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "endCxn");
+            var endCxn = cNvCxnSpPr.Element(NamespaceConstants.A + "endCxn");
             if (endCxn != null)
             {
                 var endId = endCxn.Attribute("id")?.Value;
@@ -767,7 +767,7 @@ public class XlsxProcessor : IXlsxProcessor
         if (spPr == null)
             return null;
 
-        var xfrm = spPr.Element(NamespaceConstants.a + "xfrm");
+        var xfrm = spPr.Element(NamespaceConstants.A + "xfrm");
         return ExtractTransformFromXfrm(xfrm);
     }
 
@@ -781,7 +781,7 @@ public class XlsxProcessor : IXlsxProcessor
 
         var transform = new SharedXmlToJsonl.Models.Transform();
 
-        var off = xfrm.Element(NamespaceConstants.a + "off");
+        var off = xfrm.Element(NamespaceConstants.A + "off");
         if (off != null)
         {
             var x = off.Attribute("x")?.Value;
@@ -792,7 +792,7 @@ public class XlsxProcessor : IXlsxProcessor
             }
         }
 
-        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        var ext = xfrm.Element(NamespaceConstants.A + "ext");
         if (ext != null)
         {
             var cx = ext.Attribute("cx")?.Value;
@@ -820,17 +820,17 @@ public class XlsxProcessor : IXlsxProcessor
         if (txBody == null)
             return null;
 
-        var paragraphs = txBody.Elements(NamespaceConstants.a + "p");
+        var paragraphs = txBody.Elements(NamespaceConstants.A + "p");
         var textParts = new List<string>();
 
         foreach (var paragraph in paragraphs)
         {
             var paragraphText = new List<string>();
-            var runs = paragraph.Elements(NamespaceConstants.a + "r");
+            var runs = paragraph.Elements(NamespaceConstants.A + "r");
 
             foreach (var run in runs)
             {
-                var textElement = run.Element(NamespaceConstants.a + "t");
+                var textElement = run.Element(NamespaceConstants.A + "t");
                 if (textElement != null)
                 {
                     paragraphText.Add(textElement.Value);

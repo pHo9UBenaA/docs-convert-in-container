@@ -12,8 +12,8 @@ namespace SharedXmlToJsonl.Commands
     public abstract class CommandHandlerBase<TOptions> : ICommandHandler<TOptions>
         where TOptions : CommandHandlerOptions
     {
-        protected readonly ILogger<CommandHandlerBase<TOptions>> _logger;
-        protected readonly IServiceProvider _serviceProvider;
+        protected ILogger<CommandHandlerBase<TOptions>> Logger { get; }
+        protected IServiceProvider ServiceProvider { get; }
 
         /// <summary>
         /// Initializes a new instance of the CommandHandlerBase class.
@@ -24,8 +24,8 @@ namespace SharedXmlToJsonl.Commands
             ILogger<CommandHandlerBase<TOptions>> logger,
             IServiceProvider serviceProvider)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         }
 
         /// <summary>
@@ -41,7 +41,7 @@ namespace SharedXmlToJsonl.Commands
                 {
                     foreach (var error in validationResult.Errors)
                     {
-                        _logger.LogError("Validation failed: {Error}", error);
+                        Logger.LogError("Validation failed: {Error}", error);
                     }
                     return CommonBase.ExitUsageError;
                 }
@@ -59,12 +59,12 @@ namespace SharedXmlToJsonl.Commands
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning("Operation was cancelled");
+                Logger.LogWarning("Operation was cancelled");
                 return CommonBase.ExitProcessingError;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Command execution failed");
+                Logger.LogError(ex, "Command execution failed");
                 return CommonBase.ExitProcessingError;
             }
         }

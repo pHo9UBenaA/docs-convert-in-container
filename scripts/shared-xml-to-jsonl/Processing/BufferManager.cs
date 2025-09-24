@@ -8,7 +8,7 @@ public class BufferManager : IBufferManager
 {
     private const int DefaultBufferSize = 4096;
     private readonly ILogger<BufferManager> _logger;
-    private bool _disposed = false;
+    private bool _disposed;
 
     public BufferManager(ILogger<BufferManager> logger)
     {

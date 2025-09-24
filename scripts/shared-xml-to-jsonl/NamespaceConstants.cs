@@ -16,10 +16,7 @@ public static class NamespaceConstants
     // Spreadsheet namespaces
     public static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-    // Lowercase aliases for backward compatibility
-    public static readonly XNamespace a = A;
-    public static readonly XNamespace p = P;
-    public static readonly XNamespace r = R;
+    // Spreadsheet alias
     public static readonly XNamespace spreadsheet = S;
 
     // Additional drawing namespaces

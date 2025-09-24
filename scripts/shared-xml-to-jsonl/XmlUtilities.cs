@@ -108,7 +108,7 @@ public static class XmlUtilities
             }
 
             // Process close commands
-            if (path.Elements(a + "close").Any())
+            if (path.Elements(a + "close").Count() > 0)
             {
                 pathData.Add("Z");
             }
