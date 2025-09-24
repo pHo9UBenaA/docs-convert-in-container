@@ -10,6 +10,20 @@ public class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length < 1)
+        {
+            Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> [<output-directory>]");
+            Console.WriteLine("       xlsx-xml-to-jsonl --list-sheets <input-file.xlsx>");
+            return CommonBase.ExitUsageError;
+        }
+
+        // Check for --list-sheets option
+        if (args.Length >= 2 && args[0] == "--list-sheets")
+        {
+            var processor = new XlsxXmlToJsonl.Processors.XlsxProcessor(null!, null!, null!);
+            return processor.ListSheetNames(args[1]);
+        }
+
         if (args.Length < 2)
         {
             Console.WriteLine("Usage: xlsx-xml-to-jsonl <input-file.xlsx> <output-directory>");

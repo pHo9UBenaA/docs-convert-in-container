@@ -19,18 +19,18 @@ namespace XlsxXmlToJsonl.Processors;
 
 public class XlsxProcessor : IXlsxProcessor
 {
-    private readonly IElementFactory _elementFactory;
-    private readonly IJsonWriter _jsonWriter;
-    private readonly ILogger<XlsxProcessor> _logger;
+    private readonly IElementFactory? _elementFactory;
+    private readonly IJsonWriter? _jsonWriter;
+    private readonly ILogger<XlsxProcessor>? _logger;
 
     public XlsxProcessor(
-        IElementFactory elementFactory,
-        IJsonWriter jsonWriter,
-        ILogger<XlsxProcessor> logger)
+        IElementFactory? elementFactory,
+        IJsonWriter? jsonWriter,
+        ILogger<XlsxProcessor>? logger)
     {
-        _elementFactory = elementFactory ?? throw new ArgumentNullException(nameof(elementFactory));
-        _jsonWriter = jsonWriter ?? throw new ArgumentNullException(nameof(jsonWriter));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _elementFactory = elementFactory;
+        _jsonWriter = jsonWriter;
+        _logger = logger;
     }
 
     // Implementation of IDocumentProcessor.ProcessAsync
@@ -51,7 +51,7 @@ public class XlsxProcessor : IXlsxProcessor
         ProcessingOptions options,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting XLSX processing for {Path}", inputPath);
+        _logger?.LogInformation("Starting XLSX processing for {Path}", inputPath);
 
         try
         {
@@ -59,7 +59,7 @@ public class XlsxProcessor : IXlsxProcessor
 
             if (!sheetDataByNumber.Any())
             {
-                _logger.LogWarning("No worksheets found in {Path}", inputPath);
+                _logger?.LogWarning("No worksheets found in {Path}", inputPath);
                 return new ProcessingResult
                 {
                     Success = false,
@@ -73,12 +73,15 @@ public class XlsxProcessor : IXlsxProcessor
             // Write each sheet to a separate file
             foreach (var (sheetNumber, sheetElements) in sheetDataByNumber)
             {
-                var outputPath = Path.Combine(outputDirectory, $"sheet-{sheetNumber}.jsonl");
+                // Get sheet name from the first element (sheet_metadata)
+                var sheetName = sheetElements.FirstOrDefault()?.SheetName ?? $"Sheet{sheetNumber}";
+                var sanitizedSheetName = SanitizeFileName(sheetName);
+                var outputPath = Path.Combine(outputDirectory, $"sheet-{sanitizedSheetName}.jsonl");
                 await WriteSheetToFile(outputPath, sheetElements, cancellationToken);
                 outputPaths.Add(outputPath);
             }
 
-            _logger.LogInformation("Successfully processed {Count} sheets", sheetDataByNumber.Count);
+            _logger?.LogInformation("Successfully processed {Count} sheets", sheetDataByNumber.Count);
             return new ProcessingResult
             {
                 Success = true,
@@ -88,7 +91,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing XLSX file {Path}", inputPath);
+            _logger?.LogError(ex, "Error processing XLSX file {Path}", inputPath);
             return new ProcessingResult
             {
                 Success = false,
@@ -135,7 +138,7 @@ public class XlsxProcessor : IXlsxProcessor
             var workbookPart = PackageUtilities.GetWorkbookPart(package);
             if (workbookPart == null)
             {
-                _logger.LogWarning("No workbook part found in {Path}", path);
+                _logger?.LogWarning("No workbook part found in {Path}", path);
                 return sheetDataByNumber;
             }
 
@@ -430,5 +433,69 @@ public class XlsxProcessor : IXlsxProcessor
             return new DateTime(1900, 1, 1).AddDays(excelDate - 1);
         else
             return new DateTime(1900, 1, 1).AddDays(excelDate - 2);
+    }
+
+    private string SanitizeFileName(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars()
+            .Concat(new[] { '/', '\\', '*', '?', '"', '<', '>', '|', ':' })
+            .Distinct()
+            .ToArray();
+
+        var sanitized = fileName;
+        foreach (var c in invalidChars)
+        {
+            sanitized = sanitized.Replace(c, '_');
+        }
+
+        // Remove leading/trailing spaces and dots
+        sanitized = sanitized.Trim(' ', '.');
+
+        // If empty or only underscores, use a default name
+        if (string.IsNullOrWhiteSpace(sanitized) || sanitized.All(c => c == '_'))
+        {
+            sanitized = "Sheet";
+        }
+
+        return sanitized;
+    }
+
+    public int ListSheetNames(string inputPath)
+    {
+        try
+        {
+            using var package = Package.Open(inputPath, FileMode.Open, FileAccess.Read);
+
+            var workbookPart = PackageUtilities.GetWorkbookPart(package);
+            if (workbookPart == null)
+            {
+                Console.Error.WriteLine("No workbook part found");
+                return 1;
+            }
+
+            var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
+            var sheets = workbookDoc
+                .Descendants(NamespaceConstants.spreadsheet + "sheets")
+                .Elements(NamespaceConstants.spreadsheet + "sheet")
+                .ToList();
+
+            var sheetNumber = 1;
+            foreach (var sheet in sheets)
+            {
+                var sheetName = sheet.Attribute("name")?.Value ?? $"Sheet{sheetNumber}";
+                var sanitizedName = SanitizeFileName(sheetName);
+
+                // Output format: sheetNumber|originalName|sanitizedName
+                Console.WriteLine($"{sheetNumber}|{sheetName}|{sanitizedName}");
+                sheetNumber++;
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error processing file: {ex.Message}");
+            return 1;
+        }
     }
 }
