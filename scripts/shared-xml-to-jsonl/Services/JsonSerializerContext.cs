@@ -31,6 +31,6 @@ namespace SharedXmlToJsonl.Services;
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
     WriteIndented = false,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-internal partial class SharedJsonSerializerContext : JsonSerializerContext
+internal sealed partial class SharedJsonSerializerContext : JsonSerializerContext
 {
 }

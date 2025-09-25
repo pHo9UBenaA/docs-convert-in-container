@@ -9,7 +9,7 @@ using SharedXmlToJsonl.Configuration;
 
 namespace SharedXmlToJsonl.Processing;
 
-public class ParallelProcessor : IParallelProcessor
+public partial class ParallelProcessor : IParallelProcessor
 {
     private readonly ILogger<ParallelProcessor> _logger;
     private readonly ProcessingOptions _options;
@@ -18,8 +18,10 @@ public class ParallelProcessor : IParallelProcessor
         ILogger<ParallelProcessor> logger,
         IOptions<ProcessingOptions> options)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(options);
+        _logger = logger;
+        _options = options.Value;
     }
 
     public async Task ProcessBatchAsync<T>(
@@ -27,11 +29,11 @@ public class ParallelProcessor : IParallelProcessor
         Func<T, CancellationToken, Task> processItem,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return;
+        if (itemList.Count == 0) return;
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task>();
@@ -48,7 +50,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -67,12 +69,12 @@ public class ParallelProcessor : IParallelProcessor
         Action<TResult> resultHandler,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
-        if (resultHandler == null) throw new ArgumentNullException(nameof(resultHandler));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
+        ArgumentNullException.ThrowIfNull(resultHandler);
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return;
+        if (itemList.Count == 0) return;
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task>();
@@ -94,7 +96,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -112,11 +114,11 @@ public class ParallelProcessor : IParallelProcessor
         Func<T, CancellationToken, Task<TResult>> processItem,
         CancellationToken cancellationToken = default)
     {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (processItem == null) throw new ArgumentNullException(nameof(processItem));
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(processItem);
 
         var itemList = items.ToList();
-        if (!itemList.Any()) return Array.Empty<TResult>();
+        if (itemList.Count == 0) return Array.Empty<TResult>();
 
         using var semaphore = new SemaphoreSlim(_options.MaxConcurrency);
         var tasks = new List<Task<TResult>>();
@@ -134,7 +136,7 @@ public class ParallelProcessor : IParallelProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing item: {Item}", item);
+                    LogErrorProcessingItem(_logger, ex, item?.ToString() ?? "null");
                     throw;
                 }
                 finally
@@ -147,4 +149,11 @@ public class ParallelProcessor : IParallelProcessor
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
         return results;
     }
+
+    [LoggerMessage(
+        EventId = 7001,
+        Level = LogLevel.Error,
+        Message = "Error processing item: {item}")]
+    private static partial void LogErrorProcessingItem(
+        ILogger logger, Exception ex, string item);
 }

@@ -35,7 +35,7 @@ public class ValidationException : Exception
     private static string FormatMessage(IEnumerable<string> errors)
     {
         var errorList = errors?.ToList() ?? new List<string>();
-        if (!errorList.Any())
+        if (errorList.Count == 0)
             return "Validation failed";
 
         return $"Validation failed with {errorList.Count} error(s): {string.Join("; ", errorList)}";

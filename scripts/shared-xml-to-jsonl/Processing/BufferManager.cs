@@ -4,59 +4,69 @@ using Microsoft.Extensions.Logging;
 
 namespace SharedXmlToJsonl.Processing;
 
-public class BufferManager : IBufferManager
+public partial class BufferManager : IBufferManager
 {
     private const int DefaultBufferSize = 4096;
     private readonly ILogger<BufferManager> _logger;
-    private bool _disposed = false;
+    private bool _disposed;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Trace, Message = "Rented byte buffer of size {Size}")]
+    private static partial void LogByteBufferRented(ILogger logger, int size);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Trace, Message = "Returned byte buffer of size {Size}")]
+    private static partial void LogByteBufferReturned(ILogger logger, int size);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Trace, Message = "Rented char buffer of size {Size}")]
+    private static partial void LogCharBufferRented(ILogger logger, int size);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Trace, Message = "Returned char buffer of size {Size}")]
+    private static partial void LogCharBufferReturned(ILogger logger, int size);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Debug, Message = "BufferManager disposed")]
+    private static partial void LogBufferManagerDisposed(ILogger logger);
 
     public BufferManager(ILogger<BufferManager> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public byte[] RentBuffer(int minimumSize = DefaultBufferSize)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(BufferManager));
+        ObjectDisposedException.ThrowIf(_disposed, nameof(BufferManager));
 
         var buffer = ArrayPool<byte>.Shared.Rent(minimumSize);
-        _logger.LogTrace("Rented byte buffer of size {Size}", buffer.Length);
+        LogByteBufferRented(_logger, buffer.Length);
         return buffer;
     }
 
     public void ReturnBuffer(byte[] buffer)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(BufferManager));
+        ObjectDisposedException.ThrowIf(_disposed, nameof(BufferManager));
 
-        if (buffer == null)
-            throw new ArgumentNullException(nameof(buffer));
+        ArgumentNullException.ThrowIfNull(buffer);
 
         ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
-        _logger.LogTrace("Returned byte buffer of size {Size}", buffer.Length);
+        LogByteBufferReturned(_logger, buffer.Length);
     }
 
     public char[] RentCharBuffer(int minimumSize = DefaultBufferSize)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(BufferManager));
+        ObjectDisposedException.ThrowIf(_disposed, nameof(BufferManager));
 
         var buffer = ArrayPool<char>.Shared.Rent(minimumSize);
-        _logger.LogTrace("Rented char buffer of size {Size}", buffer.Length);
+        LogCharBufferRented(_logger, buffer.Length);
         return buffer;
     }
 
     public void ReturnCharBuffer(char[] buffer)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(BufferManager));
+        ObjectDisposedException.ThrowIf(_disposed, nameof(BufferManager));
 
-        if (buffer == null)
-            throw new ArgumentNullException(nameof(buffer));
+        ArgumentNullException.ThrowIfNull(buffer);
 
         ArrayPool<char>.Shared.Return(buffer, clearArray: true);
-        _logger.LogTrace("Returned char buffer of size {Size}", buffer.Length);
+        LogCharBufferReturned(_logger, buffer.Length);
     }
 
     public void Dispose()
@@ -72,7 +82,7 @@ public class BufferManager : IBufferManager
             if (disposing)
             {
                 // Clean up managed resources if any
-                _logger.LogDebug("BufferManager disposed");
+                LogBufferManagerDisposed(_logger);
             }
             _disposed = true;
         }

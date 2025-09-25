@@ -16,7 +16,8 @@ public class DocumentProcessingException : Exception
         Exception? innerException = null)
         : base(message, innerException)
     {
-        DocumentPath = documentPath ?? throw new ArgumentNullException(nameof(documentPath));
+        ArgumentNullException.ThrowIfNull(documentPath);
+        DocumentPath = documentPath;
         Stage = stage;
     }
 

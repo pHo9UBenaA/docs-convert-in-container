@@ -10,7 +10,7 @@ namespace PptxXmlToJsonl.Commands
     /// <summary>
     /// Command handler for converting PPTX files to JSONL format.
     /// </summary>
-    public class ConvertPptxCommand : CommandHandlerBase<ConvertPptxOptions>
+    public partial class ConvertPptxCommand : CommandHandlerBase<ConvertPptxOptions>
     {
         private readonly IPptxProcessor _processor;
         private readonly IJsonWriter _jsonWriter;
@@ -36,7 +36,7 @@ namespace PptxXmlToJsonl.Commands
             ConvertPptxOptions options,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Starting PPTX conversion for {InputPath}", options.InputPath);
+            LogStartingConversion(Logger, options.InputPath);
 
             var result = await _processor.ProcessAsync(
                 options.InputPath,
@@ -45,12 +45,12 @@ namespace PptxXmlToJsonl.Commands
 
             if (result.Success)
             {
-                _logger.LogInformation("Successfully processed {ItemsCount} items", result.ItemsProcessed);
+                LogProcessingSuccess(Logger, result.ItemsProcessed);
                 return SharedXmlToJsonl.CommonBase.ExitSuccess;
             }
             else
             {
-                _logger.LogError("Processing failed: {ErrorMessage}", result.ErrorMessage);
+                LogProcessingError(Logger, result.ErrorMessage ?? "Unknown error");
                 return SharedXmlToJsonl.CommonBase.ExitProcessingError;
             }
         }
@@ -63,6 +63,18 @@ namespace PptxXmlToJsonl.Commands
             // Command setup logic can be added here if needed
         }
 
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting PPTX conversion for {InputPath}")]
+        private static partial void LogStartingConversion(ILogger logger, string inputPath);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Successfully processed {ItemsCount} items")]
+        private static partial void LogProcessingSuccess(ILogger logger, int itemsCount);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Error, Message = "Processing failed: {ErrorMessage}")]
+        private static partial void LogProcessingError(ILogger logger, string errorMessage);
+
+        [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "Options: MaxSlides={MaxSlides}, IncludeHiddenSlides={IncludeHidden}, ExtractShapes={ExtractShapes}, ExtractText={ExtractText}")]
+        private static partial void LogOptions(ILogger logger, int maxSlides, bool includeHidden, bool extractShapes, bool extractText);
+
         /// <summary>
         /// Pre-processing hook.
         /// </summary>
@@ -70,8 +82,7 @@ namespace PptxXmlToJsonl.Commands
         {
             if (options.Verbose)
             {
-                _logger.LogDebug("Options: MaxSlides={MaxSlides}, IncludeHiddenSlides={IncludeHidden}, ExtractShapes={ExtractShapes}, ExtractText={ExtractText}",
-                    options.MaxSlides, options.IncludeHiddenSlides, options.ExtractShapes, options.ExtractText);
+                LogOptions(Logger, options.MaxSlides, options.IncludeHiddenSlides, options.ExtractShapes, options.ExtractText);
             }
             return Task.CompletedTask;
         }

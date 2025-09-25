@@ -19,7 +19,8 @@ namespace SharedXmlToJsonl.Factories
         /// <param name="serviceProvider">The service provider for dependency injection.</param>
         public DocumentProcessorFactory(IServiceProvider serviceProvider)
         {
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            _serviceProvider = serviceProvider;
             _processorTypes = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase)
             {
                 [".pptx"] = typeof(IPptxProcessor),

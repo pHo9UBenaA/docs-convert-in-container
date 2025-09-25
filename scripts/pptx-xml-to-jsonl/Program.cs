@@ -6,44 +6,47 @@ using PptxXmlToJsonl.Commands;
 using SharedXmlToJsonl;
 using SharedXmlToJsonl.DependencyInjection;
 
-public class Program
+namespace PptxXmlToJsonl
 {
-    public static async Task<int> Main(string[] args)
+    public class Program
     {
-        if (args.Length < 2)
+        public static async Task<int> Main(string[] args)
         {
-            Console.WriteLine("Usage: pptx-xml-to-jsonl <input-file.pptx> <output-directory>");
-            return CommonBase.ExitUsageError;
-        }
-
-        var inputPath = args[0];
-        var outputDirectory = args[1];
-
-        // Create and configure the host
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureServices((context, services) =>
+            if (args.Length < 2)
             {
-                // Add shared document processing services
-                services.AddDocumentProcessing(context.Configuration);
+                Console.WriteLine("Usage: pptx-xml-to-jsonl <input-file.pptx> <output-directory>");
+                return CommonBase.ExitUsageError;
+            }
 
-                // Add PPTX-specific services
-                services.AddScoped<PptxXmlToJsonl.Processors.PptxProcessor>();
-                services.AddScoped<SharedXmlToJsonl.Interfaces.IPptxProcessor, PptxXmlToJsonl.Processors.PptxProcessor>();
-                services.AddScoped<ConvertPptxCommand>();
-            })
-            .Build();
+            var inputPath = args[0];
+            var outputDirectory = args[1];
 
-        // Execute the conversion
-        using var scope = host.Services.CreateScope();
-        var command = scope.ServiceProvider.GetRequiredService<ConvertPptxCommand>();
+            // Create and configure the host
+            var host = Host.CreateDefaultBuilder(args)
+                .ConfigureServices((context, services) =>
+                {
+                    // Add shared document processing services
+                    services.AddDocumentProcessing(context.Configuration);
 
-        var options = new ConvertPptxOptions
-        {
-            InputPath = inputPath,
-            OutputDirectory = outputDirectory,
-            Verbose = false
-        };
+                    // Add PPTX-specific services
+                    services.AddScoped<PptxXmlToJsonl.Processors.PptxProcessor>();
+                    services.AddScoped<SharedXmlToJsonl.Interfaces.IPptxProcessor, PptxXmlToJsonl.Processors.PptxProcessor>();
+                    services.AddScoped<ConvertPptxCommand>();
+                })
+                .Build();
 
-        return await command.ExecuteAsync(options);
+            // Execute the conversion
+            using var scope = host.Services.CreateScope();
+            var command = scope.ServiceProvider.GetRequiredService<ConvertPptxCommand>();
+
+            var options = new ConvertPptxOptions
+            {
+                InputPath = inputPath,
+                OutputDirectory = outputDirectory,
+                Verbose = false
+            };
+
+            return await command.ExecuteAsync(options);
+        }
     }
 }

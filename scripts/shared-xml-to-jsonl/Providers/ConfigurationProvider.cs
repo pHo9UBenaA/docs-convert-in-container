@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace SharedXmlToJsonl.Providers;
 
-public class ConfigurationProvider : IConfigurationProvider
+public partial class ConfigurationProvider : IConfigurationProvider
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<ConfigurationProvider> _logger;
@@ -18,8 +18,10 @@ public class ConfigurationProvider : IConfigurationProvider
         IConfiguration configuration,
         ILogger<ConfigurationProvider> logger)
     {
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(configuration);
+        _configuration = configuration;
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public T GetConfiguration<T>(string sectionName) where T : class, new()
@@ -27,14 +29,14 @@ public class ConfigurationProvider : IConfigurationProvider
         if (string.IsNullOrEmpty(sectionName))
             throw new ArgumentNullException(nameof(sectionName));
 
-        _logger.LogDebug("Getting configuration for section: {SectionName}", sectionName);
+        LogGettingConfigurationForSection(_logger, sectionName);
 
         var configuration = new T();
         var section = _configuration.GetSection(sectionName);
 
         if (!section.Exists())
         {
-            _logger.LogWarning("Configuration section not found: {SectionName}, using defaults", sectionName);
+            LogConfigurationSectionNotFound(_logger, sectionName);
             return configuration;
         }
 
@@ -59,8 +61,7 @@ public class ConfigurationProvider : IConfigurationProvider
 
     public ValidationResult ValidateConfiguration<T>(T configuration) where T : class
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         var validationContext = new ValidationContext(configuration);
         var validationResults = new List<ValidationResult>();
@@ -74,17 +75,44 @@ public class ConfigurationProvider : IConfigurationProvider
         if (!isValid)
         {
             var errors = string.Join("; ", validationResults.Select(r => r.ErrorMessage));
-            _logger.LogError("Configuration validation failed: {Errors}", errors);
+            LogConfigurationValidationFailed(_logger, errors);
             return new ValidationResult(errors);
         }
 
         return ValidationResult.Success!;
     }
 
+    [LoggerMessage(
+        EventId = 1001,
+        Level = LogLevel.Debug,
+        Message = "Getting configuration for section: {sectionName}")]
+    private static partial void LogGettingConfigurationForSection(
+        ILogger logger, string sectionName);
+
+    [LoggerMessage(
+        EventId = 1002,
+        Level = LogLevel.Warning,
+        Message = "Configuration section not found: {sectionName}, using defaults")]
+    private static partial void LogConfigurationSectionNotFound(
+        ILogger logger, string sectionName);
+
+    [LoggerMessage(
+        EventId = 1003,
+        Level = LogLevel.Error,
+        Message = "Configuration validation failed: {errors}")]
+    private static partial void LogConfigurationValidationFailed(
+        ILogger logger, string errors);
+
+    [LoggerMessage(
+        EventId = 1004,
+        Level = LogLevel.Debug,
+        Message = "Bound configuration for section: {sectionName}")]
+    private static partial void LogBoundConfigurationForSection(
+        ILogger logger, string sectionName);
+
     public void BindConfiguration<T>(T configuration, string sectionName) where T : class
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrEmpty(sectionName))
             throw new ArgumentNullException(nameof(sectionName));
@@ -93,11 +121,11 @@ public class ConfigurationProvider : IConfigurationProvider
         if (section.Exists())
         {
             section.Bind(configuration);
-            _logger.LogDebug("Bound configuration for section: {SectionName}", sectionName);
+            LogBoundConfigurationForSection(_logger, sectionName);
         }
         else
         {
-            _logger.LogWarning("Configuration section not found: {SectionName}", sectionName);
+            LogConfigurationSectionNotFound(_logger, sectionName);
         }
     }
 }

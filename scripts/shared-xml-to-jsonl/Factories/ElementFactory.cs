@@ -63,7 +63,7 @@ namespace SharedXmlToJsonl.Factories
         /// <summary>
         /// Generic element implementation.
         /// </summary>
-        private class GenericElement : IElement
+        private sealed class GenericElement : IElement
         {
             public string Type { get; }
             public string? Id { get; }
@@ -89,7 +89,7 @@ namespace SharedXmlToJsonl.Factories
         /// <summary>
         /// Shape element implementation.
         /// </summary>
-        private class ShapeElement : IShapeElement
+        private sealed class ShapeElement : IShapeElement
         {
             public string Type => "shape";
             public string? Id { get; }
@@ -154,7 +154,7 @@ namespace SharedXmlToJsonl.Factories
         /// <summary>
         /// Table element implementation.
         /// </summary>
-        private class TableElement : ITableElement
+        private sealed class TableElement : ITableElement
         {
             public string Type => "table";
             public string? Id { get; }
@@ -187,7 +187,7 @@ namespace SharedXmlToJsonl.Factories
         /// <summary>
         /// Connector element implementation.
         /// </summary>
-        private class ConnectorElement : IConnectorElement
+        private sealed class ConnectorElement : IConnectorElement
         {
             public string Type => "connector";
             public string? Id { get; }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
@@ -17,7 +18,7 @@ using SharedXmlToJsonl.Models;
 
 namespace XlsxXmlToJsonl.Processors;
 
-public class XlsxProcessor : IXlsxProcessor
+public partial class XlsxProcessor : IXlsxProcessor
 {
     private readonly IElementFactory? _elementFactory;
     private readonly IJsonWriter? _jsonWriter;
@@ -51,15 +52,15 @@ public class XlsxProcessor : IXlsxProcessor
         ProcessingOptions options,
         CancellationToken cancellationToken = default)
     {
-        _logger?.LogInformation("Starting XLSX processing for {Path}", inputPath);
+        if (_logger != null) LogStartingProcessing(_logger, inputPath);
 
         try
         {
             var sheetDataByNumber = await ExtractSheetsAsync(inputPath, cancellationToken);
 
-            if (!sheetDataByNumber.Any())
+            if (sheetDataByNumber.Count == 0)
             {
-                _logger?.LogWarning("No worksheets found in {Path}", inputPath);
+                if (_logger != null) LogNoWorksheetsFound(_logger, inputPath);
                 return new ProcessingResult
                 {
                     Success = false,
@@ -81,7 +82,7 @@ public class XlsxProcessor : IXlsxProcessor
                 outputPaths.Add(outputPath);
             }
 
-            _logger?.LogInformation("Successfully processed {Count} sheets", sheetDataByNumber.Count);
+            if (_logger != null) LogProcessingSuccess(_logger, sheetDataByNumber.Count);
             return new ProcessingResult
             {
                 Success = true,
@@ -91,7 +92,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Error processing XLSX file {Path}", inputPath);
+            if (_logger != null) LogProcessingError(_logger, ex, inputPath);
             return new ProcessingResult
             {
                 Success = false,
@@ -100,7 +101,7 @@ public class XlsxProcessor : IXlsxProcessor
         }
     }
 
-    private async Task WriteSheetToFile(
+    private static async Task WriteSheetToFile(
         string outputPath,
         List<SheetElement> sheetElements,
         CancellationToken cancellationToken)
@@ -145,14 +146,14 @@ public class XlsxProcessor : IXlsxProcessor
             var workbookPart = PackageUtilities.GetWorkbookPart(package);
             if (workbookPart == null)
             {
-                _logger?.LogWarning("No workbook part found in {Path}", path);
+                if (_logger != null) LogNoWorkbookPart(_logger, path);
                 return sheetDataByNumber;
             }
 
             var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
             var sheets = workbookDoc
-                .Descendants(NamespaceConstants.spreadsheet + "sheets")
-                .Elements(NamespaceConstants.spreadsheet + "sheet")
+                .Descendants(NamespaceConstants.Spreadsheet + "sheets")
+                .Elements(NamespaceConstants.Spreadsheet + "sheet")
                 .ToList();
 
             var sheetNumber = 1;
@@ -161,7 +162,7 @@ public class XlsxProcessor : IXlsxProcessor
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var sheetName = sheet.Attribute("name")?.Value ?? $"Sheet{sheetNumber}";
-                var rId = sheet.Attribute(NamespaceConstants.r + "id")?.Value;
+                var rId = sheet.Attribute(NamespaceConstants.R + "id")?.Value;
 
                 if (string.IsNullOrEmpty(rId))
                     continue;
@@ -186,7 +187,7 @@ public class XlsxProcessor : IXlsxProcessor
         }, cancellationToken);
     }
 
-    private Dictionary<int, string> LoadSharedStrings(Package package)
+    private static Dictionary<int, string> LoadSharedStrings(Package package)
     {
         var sharedStringsDict = new Dictionary<int, string>();
         var sharedStringsPart = PackageUtilities.GetSharedStringsPart(package);
@@ -195,7 +196,7 @@ public class XlsxProcessor : IXlsxProcessor
         {
             var sharedStringsDoc = PackageUtilities.GetXDocument(sharedStringsPart);
             var stringItems = sharedStringsDoc
-                .Descendants(NamespaceConstants.spreadsheet + "si")
+                .Descendants(NamespaceConstants.Spreadsheet + "si")
                 .ToList();
 
             for (int i = 0; i < stringItems.Count; i++)
@@ -208,7 +209,7 @@ public class XlsxProcessor : IXlsxProcessor
         return sharedStringsDict;
     }
 
-    private HashSet<int> LoadDateFormats(Package package)
+    private static HashSet<int> LoadDateFormats(Package package)
     {
         var dateFormats = new HashSet<int>();
         var stylesPart = PackageUtilities.GetStylesPart(package);
@@ -219,9 +220,9 @@ public class XlsxProcessor : IXlsxProcessor
 
             // Get custom number formats that look like dates
             var numFmts = stylesDoc
-                .Descendants(NamespaceConstants.spreadsheet + "numFmt")
+                .Descendants(NamespaceConstants.Spreadsheet + "numFmt")
                 .Where(n => IsDateFormat(n.Attribute("formatCode")?.Value ?? ""))
-                .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0"));
+                .Select(n => int.Parse(n.Attribute("numFmtId")?.Value ?? "0", CultureInfo.InvariantCulture));
 
             foreach (var numFmtId in numFmts)
             {
@@ -238,27 +239,27 @@ public class XlsxProcessor : IXlsxProcessor
         return dateFormats;
     }
 
-    private bool IsDateFormat(string formatCode)
+    private static bool IsDateFormat(string formatCode)
     {
         var dateIndicators = new[] { "mm", "dd", "yy", "hh", "ss", "AM/PM" };
         return dateIndicators.Any(indicator => formatCode.Contains(indicator, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string ExtractTextFromSi(XElement si)
+    private static string ExtractTextFromSi(XElement si)
     {
         var texts = new List<string>();
 
         // Check for simple text
-        var t = si.Element(NamespaceConstants.spreadsheet + "t");
+        var t = si.Element(NamespaceConstants.Spreadsheet + "t");
         if (t != null)
         {
             return t.Value;
         }
 
         // Check for rich text
-        foreach (var r in si.Elements(NamespaceConstants.spreadsheet + "r"))
+        foreach (var r in si.Elements(NamespaceConstants.Spreadsheet + "r"))
         {
-            var rText = r.Element(NamespaceConstants.spreadsheet + "t")?.Value;
+            var rText = r.Element(NamespaceConstants.Spreadsheet + "t")?.Value;
             if (!string.IsNullOrEmpty(rText))
                 texts.Add(rText);
         }
@@ -266,7 +267,7 @@ public class XlsxProcessor : IXlsxProcessor
         return string.Join("", texts);
     }
 
-    private List<SheetElement> ProcessWorksheet(
+    private static List<SheetElement> ProcessWorksheet(
         XDocument worksheetDoc,
         Dictionary<int, string> sharedStrings,
         HashSet<int> dateFormats,
@@ -293,16 +294,16 @@ public class XlsxProcessor : IXlsxProcessor
             }
         });
 
-        var sheetData = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "sheetData");
+        var sheetData = worksheetDoc.Root?.Element(NamespaceConstants.Spreadsheet + "sheetData");
         if (sheetData == null)
             return elements;
 
         // Process all cells
-        foreach (var row in sheetData.Elements(NamespaceConstants.spreadsheet + "row"))
+        foreach (var row in sheetData.Elements(NamespaceConstants.Spreadsheet + "row"))
         {
-            var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0");
+            var rowNum = int.Parse(row.Attribute("r")?.Value ?? "0", CultureInfo.InvariantCulture);
 
-            foreach (var cell in row.Elements(NamespaceConstants.spreadsheet + "c"))
+            foreach (var cell in row.Elements(NamespaceConstants.Spreadsheet + "c"))
             {
                 var cellElement = ProcessCell(cell, sharedStrings, dateFormats, mergeCells, sheetNumber, sheetName, ref elementIndex);
                 if (cellElement != null)
@@ -484,16 +485,18 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Error processing drawings for sheet {SheetNumber}", sheetNumber);
+            if (_logger != null) LogDrawingsError(_logger, ex, sheetNumber);
         }
 
         return elements;
     }
 
+    private static readonly char[] second = new[] { '/', '\\', '*', '?', '"', '<', '>', '|', ':' };
+
     /// <summary>
     /// Extract two-cell anchor information
     /// </summary>
-    private (CellAnchor from, CellAnchor to) ExtractTwoCellAnchor(XElement twoCellAnchor)
+    private static (CellAnchor from, CellAnchor to) ExtractTwoCellAnchor(XElement twoCellAnchor)
     {
         var from = twoCellAnchor.Element(NamespaceConstants.XDR + "from");
         var to = twoCellAnchor.Element(NamespaceConstants.XDR + "to");
@@ -507,7 +510,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract one-cell anchor information
     /// </summary>
-    private CellAnchor ExtractOneCellAnchor(XElement oneCellAnchor)
+    private static CellAnchor ExtractOneCellAnchor(XElement oneCellAnchor)
     {
         var from = oneCellAnchor.Element(NamespaceConstants.XDR + "from");
         return ExtractCellAnchor(from);
@@ -516,15 +519,15 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract cell anchor details
     /// </summary>
-    private CellAnchor ExtractCellAnchor(XElement? anchorElement)
+    private static CellAnchor ExtractCellAnchor(XElement? anchorElement)
     {
         if (anchorElement == null)
             return new CellAnchor("", 0, 0, "", 0, 0);
 
-        var col = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "col")?.Value ?? "0");
-        var colOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "colOff")?.Value ?? "0");
-        var row = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "row")?.Value ?? "0");
-        var rowOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "rowOff")?.Value ?? "0");
+        var col = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "col")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var colOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "colOff")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var row = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "row")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var rowOff = int.Parse(anchorElement.Element(NamespaceConstants.XDR + "rowOff")?.Value ?? "0", CultureInfo.InvariantCulture);
 
         var cellRef = GetCellReference(col + 1, row + 1); // Convert to 1-based
 
@@ -550,8 +553,8 @@ public class XlsxProcessor : IXlsxProcessor
 
         // Get image reference
         var blipFill = pic.Element(NamespaceConstants.XDR + "blipFill");
-        var blip = blipFill?.Element(NamespaceConstants.a + "blip");
-        var embedId = blip?.Attribute(NamespaceConstants.r + "embed")?.Value;
+        var blip = blipFill?.Element(NamespaceConstants.A + "blip");
+        var embedId = blip?.Attribute(NamespaceConstants.R + "embed")?.Value;
 
         string? imagePath = null;
         if (!string.IsNullOrEmpty(embedId))
@@ -581,7 +584,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract shape element
     /// </summary>
-    private SheetElement? ExtractShapeElement(
+    private static SheetElement? ExtractShapeElement(
         XElement sp,
         int sheetNumber,
         string sheetName,
@@ -596,7 +599,7 @@ public class XlsxProcessor : IXlsxProcessor
         var transform = ExtractTransformFromSpPr(spPr);
 
         // Get shape type
-        var prstGeom = spPr?.Element(NamespaceConstants.a + "prstGeom");
+        var prstGeom = spPr?.Element(NamespaceConstants.A + "prstGeom");
         var shapeType = prstGeom?.Attribute("prst")?.Value;
 
         // Extract text from txBody element
@@ -631,7 +634,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract graphic frame element (charts, etc.)
     /// </summary>
-    private SheetElement? ExtractGraphicFrameElement(
+    private static SheetElement? ExtractGraphicFrameElement(
         XElement graphicFrame,
         int sheetNumber,
         string sheetName,
@@ -646,8 +649,8 @@ public class XlsxProcessor : IXlsxProcessor
         var transform = ExtractTransformFromXfrm(xfrm);
 
         // Determine the type of graphic
-        var graphic = graphicFrame.Element(NamespaceConstants.a + "graphic");
-        var graphicData = graphic?.Element(NamespaceConstants.a + "graphicData");
+        var graphic = graphicFrame.Element(NamespaceConstants.A + "graphic");
+        var graphicData = graphic?.Element(NamespaceConstants.A + "graphicData");
         var uri = graphicData?.Attribute("uri")?.Value;
 
         string? graphicType = "graphic";
@@ -676,7 +679,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract connector element
     /// </summary>
-    private SheetElement? ExtractConnectorElement(
+    private static SheetElement? ExtractConnectorElement(
         XElement cxnSp,
         int sheetNumber,
         string sheetName,
@@ -695,7 +698,7 @@ public class XlsxProcessor : IXlsxProcessor
         if (cNvCxnSpPr != null)
         {
             // Extract start connection
-            var stCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "stCxn");
+            var stCxn = cNvCxnSpPr.Element(NamespaceConstants.A + "stCxn");
             if (stCxn != null)
             {
                 var startId = stCxn.Attribute("id")?.Value;
@@ -710,7 +713,7 @@ public class XlsxProcessor : IXlsxProcessor
             }
 
             // Extract end connection
-            var endCxn = cNvCxnSpPr.Element(NamespaceConstants.a + "endCxn");
+            var endCxn = cNvCxnSpPr.Element(NamespaceConstants.A + "endCxn");
             if (endCxn != null)
             {
                 var endId = endCxn.Attribute("id")?.Value;
@@ -762,26 +765,26 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract transform from shape properties
     /// </summary>
-    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromSpPr(XElement? spPr)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransformFromSpPr(XElement? spPr)
     {
         if (spPr == null)
             return null;
 
-        var xfrm = spPr.Element(NamespaceConstants.a + "xfrm");
+        var xfrm = spPr.Element(NamespaceConstants.A + "xfrm");
         return ExtractTransformFromXfrm(xfrm);
     }
 
     /// <summary>
     /// Extract transform from xfrm element
     /// </summary>
-    private SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
+    private static SharedXmlToJsonl.Models.Transform? ExtractTransformFromXfrm(XElement? xfrm)
     {
         if (xfrm == null)
             return null;
 
         var transform = new SharedXmlToJsonl.Models.Transform();
 
-        var off = xfrm.Element(NamespaceConstants.a + "off");
+        var off = xfrm.Element(NamespaceConstants.A + "off");
         if (off != null)
         {
             var x = off.Attribute("x")?.Value;
@@ -792,7 +795,7 @@ public class XlsxProcessor : IXlsxProcessor
             }
         }
 
-        var ext = xfrm.Element(NamespaceConstants.a + "ext");
+        var ext = xfrm.Element(NamespaceConstants.A + "ext");
         if (ext != null)
         {
             var cx = ext.Attribute("cx")?.Value;
@@ -815,22 +818,22 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Extract text content from txBody element
     /// </summary>
-    private string? ExtractTextFromTxBody(XElement? txBody)
+    private static string? ExtractTextFromTxBody(XElement? txBody)
     {
         if (txBody == null)
             return null;
 
-        var paragraphs = txBody.Elements(NamespaceConstants.a + "p");
+        var paragraphs = txBody.Elements(NamespaceConstants.A + "p");
         var textParts = new List<string>();
 
         foreach (var paragraph in paragraphs)
         {
             var paragraphText = new List<string>();
-            var runs = paragraph.Elements(NamespaceConstants.a + "r");
+            var runs = paragraph.Elements(NamespaceConstants.A + "r");
 
             foreach (var run in runs)
             {
-                var textElement = run.Element(NamespaceConstants.a + "t");
+                var textElement = run.Element(NamespaceConstants.A + "t");
                 if (textElement != null)
                 {
                     paragraphText.Add(textElement.Value);
@@ -868,12 +871,12 @@ public class XlsxProcessor : IXlsxProcessor
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to resolve image path for embed ID {EmbedId}", embedId);
+            if (_logger != null) LogImagePathError(_logger, ex, embedId);
             return null;
         }
     }
 
-    private SheetElement? ProcessCell(
+    private static SheetElement? ProcessCell(
         XElement cell,
         Dictionary<int, string> sharedStrings,
         HashSet<int> dateFormats,
@@ -889,9 +892,9 @@ public class XlsxProcessor : IXlsxProcessor
         var column = GetColumnFromCellReference(cellRef);
 
         var cellType = cell.Attribute("t")?.Value;
-        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0");
-        var valueElement = cell.Element(NamespaceConstants.spreadsheet + "v");
-        var formulaElement = cell.Element(NamespaceConstants.spreadsheet + "f");
+        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var valueElement = cell.Element(NamespaceConstants.Spreadsheet + "v");
+        var formulaElement = cell.Element(NamespaceConstants.Spreadsheet + "f");
 
         if (valueElement == null && formulaElement == null)
             return null;
@@ -901,37 +904,37 @@ public class XlsxProcessor : IXlsxProcessor
 
         if (valueElement != null)
         {
-            var value = valueElement.Value;
+            var cellValueText = valueElement.Value;
 
             switch (cellType)
             {
                 case "s": // Shared string
-                    if (int.TryParse(value, out int stringIndex) && sharedStrings.ContainsKey(stringIndex))
+                    if (int.TryParse(cellValueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int stringIndex) && sharedStrings.TryGetValue(stringIndex, out string? sharedValue))
                     {
-                        cellValue.Text = sharedStrings[stringIndex];
+                        cellValue.Text = sharedValue;
                         cellValue.ValueType = "text";
                     }
                     break;
 
                 case "b": // Boolean
-                    cellValue.Boolean = value == "1";
+                    cellValue.Boolean = cellValueText == "1";
                     cellValue.ValueType = "boolean";
                     break;
 
                 case "e": // Error
-                    cellValue.Text = value;
+                    cellValue.Text = cellValueText;
                     cellValue.ValueType = "error";
                     break;
 
                 case "str": // String (inline)
                 case "inlineStr":
-                    cellValue.Text = value;
+                    cellValue.Text = cellValueText;
                     cellValue.ValueType = "text";
                     break;
 
                 case "n": // Number (explicit)
                 default:
-                    if (double.TryParse(value, out double numberValue))
+                    if (double.TryParse(cellValueText, NumberStyles.Float | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out double numberValue))
                     {
                         // Check if it's a date based on format
                         if (dateFormats.Contains(styleIndex))
@@ -946,14 +949,14 @@ public class XlsxProcessor : IXlsxProcessor
 
                             // Also store text representation for compatibility
                             if (numberValue == Math.Floor(numberValue))
-                                cellValue.Text = ((int)numberValue).ToString();
+                                cellValue.Text = ((int)numberValue).ToString(CultureInfo.InvariantCulture);
                             else
-                                cellValue.Text = numberValue.ToString();
+                                cellValue.Text = numberValue.ToString(CultureInfo.InvariantCulture);
                         }
                     }
                     else
                     {
-                        cellValue.Text = value;
+                        cellValue.Text = cellValueText;
                         cellValue.ValueType = "text";
                     }
                     break;
@@ -980,9 +983,9 @@ public class XlsxProcessor : IXlsxProcessor
         };
 
         // Check if this cell is part of a merge range
-        if (mergeCells.ContainsKey(cellRef))
+        if (mergeCells.TryGetValue(cellRef, out string? value))
         {
-            var mergeRange = mergeCells[cellRef];
+            var mergeRange = value;
             var parentCell = GetMergeParentCell(mergeRange);
 
             element.IsMerged = true;
@@ -998,7 +1001,7 @@ public class XlsxProcessor : IXlsxProcessor
         return element;
     }
 
-    private int GetColumnFromCellReference(string cellRef)
+    private static int GetColumnFromCellReference(string cellRef)
     {
         var column = 0;
         foreach (char c in cellRef)
@@ -1015,7 +1018,7 @@ public class XlsxProcessor : IXlsxProcessor
         return column;
     }
 
-    private DateTime ConvertExcelDateToDateTime(double excelDate)
+    private static DateTime ConvertExcelDateToDateTime(double excelDate)
     {
         // Excel dates start from 1900-01-01 (with a leap year bug for 1900)
         if (excelDate < 60)
@@ -1024,10 +1027,10 @@ public class XlsxProcessor : IXlsxProcessor
             return new DateTime(1900, 1, 1).AddDays(excelDate - 2);
     }
 
-    private string SanitizeFileName(string fileName)
+    private static string SanitizeFileName(string fileName)
     {
         var invalidChars = Path.GetInvalidFileNameChars()
-            .Concat(new[] { '/', '\\', '*', '?', '"', '<', '>', '|', ':' })
+            .Concat(second)
             .Distinct()
             .ToArray();
 
@@ -1052,15 +1055,15 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Load merge cells information from worksheet
     /// </summary>
-    private Dictionary<string, string> LoadMergeCells(XDocument worksheetDoc)
+    private static Dictionary<string, string> LoadMergeCells(XDocument worksheetDoc)
     {
         var mergeCellsDict = new Dictionary<string, string>();
 
-        var mergeCells = worksheetDoc.Root?.Element(NamespaceConstants.spreadsheet + "mergeCells");
+        var mergeCells = worksheetDoc.Root?.Element(NamespaceConstants.Spreadsheet + "mergeCells");
         if (mergeCells == null)
             return mergeCellsDict;
 
-        foreach (var mergeCell in mergeCells.Elements(NamespaceConstants.spreadsheet + "mergeCell"))
+        foreach (var mergeCell in mergeCells.Elements(NamespaceConstants.Spreadsheet + "mergeCell"))
         {
             var range = mergeCell.Attribute("ref")?.Value;
             if (string.IsNullOrEmpty(range))
@@ -1088,7 +1091,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Get the parent cell (top-left) of a merge range
     /// </summary>
-    private string GetMergeParentCell(string mergeRange)
+    private static string GetMergeParentCell(string mergeRange)
     {
         var parts = mergeRange.Split(':');
         return parts.Length > 0 ? parts[0] : mergeRange;
@@ -1097,7 +1100,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Get all cell references within a range
     /// </summary>
-    private List<string> GetCellsInRange(string startCell, string endCell)
+    private static List<string> GetCellsInRange(string startCell, string endCell)
     {
         var cells = new List<string>();
 
@@ -1119,7 +1122,7 @@ public class XlsxProcessor : IXlsxProcessor
     /// <summary>
     /// Parse a cell reference into column and row numbers
     /// </summary>
-    private (int col, int row) ParseCellReference(string cellRef)
+    private static (int col, int row) ParseCellReference(string cellRef)
     {
         int col = 0;
         int rowIndex = 0;
@@ -1135,14 +1138,14 @@ public class XlsxProcessor : IXlsxProcessor
             col = col * 26 + (cellRef[i] - 'A' + 1);
         }
 
-        int row = int.Parse(cellRef.Substring(rowIndex));
+        int row = int.Parse(cellRef.AsSpan(rowIndex), CultureInfo.InvariantCulture);
         return (col, row);
     }
 
     /// <summary>
     /// Get cell reference from column and row numbers
     /// </summary>
-    private string GetCellReference(int col, int row)
+    private static string GetCellReference(int col, int row)
     {
         string colStr = "";
         while (col > 0)
@@ -1154,7 +1157,7 @@ public class XlsxProcessor : IXlsxProcessor
         return colStr + row;
     }
 
-    public int ListSheetNames(string inputPath)
+    public static int ListSheetNames(string inputPath)
     {
         try
         {
@@ -1169,8 +1172,8 @@ public class XlsxProcessor : IXlsxProcessor
 
             var workbookDoc = PackageUtilities.GetXDocument(workbookPart);
             var sheets = workbookDoc
-                .Descendants(NamespaceConstants.spreadsheet + "sheets")
-                .Elements(NamespaceConstants.spreadsheet + "sheet")
+                .Descendants(NamespaceConstants.Spreadsheet + "sheets")
+                .Elements(NamespaceConstants.Spreadsheet + "sheet")
                 .ToList();
 
             var sheetNumber = 1;
@@ -1192,4 +1195,25 @@ public class XlsxProcessor : IXlsxProcessor
             return 1;
         }
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting XLSX processing for {Path}")]
+    private static partial void LogStartingProcessing(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "No worksheets found in {Path}")]
+    private static partial void LogNoWorksheetsFound(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Successfully processed {Count} sheets")]
+    private static partial void LogProcessingSuccess(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Error processing XLSX file {Path}")]
+    private static partial void LogProcessingError(ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "No workbook part found in {Path}")]
+    private static partial void LogNoWorkbookPart(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Error processing drawings for sheet {SheetNumber}")]
+    private static partial void LogDrawingsError(ILogger logger, Exception ex, int sheetNumber);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Warning, Message = "Failed to resolve image path for embed ID {EmbedId}")]
+    private static partial void LogImagePathError(ILogger logger, Exception ex, string embedId);
 }

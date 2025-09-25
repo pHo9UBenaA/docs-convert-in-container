@@ -1,118 +1,122 @@
 # docs-convert-in-container
 
-オフィス系ドキュメントをLLMで扱いやすい形式に変換するスクリプト群です
+A collection of scripts designed to convert office document formats into a format more suitable for processing with LLMs.
 
-`docs/` ディレクトリ内の `pptx`, `xlsx`, `pdf` ファイルをすべて探索し、PNGやCSVに変換します。
+This script recursively processes all `pptx`, `xlsx`, and `pdf` files within the `docs/` directory, converting them into PNG images or CSV files.
 
-変換されたファイルは、元ファイルと同じ階層に保存されます。
+The converted files are saved in the same directory structure as their original counterparts.
 <details>
 
-<summary>変換後のツリー例</summary>
+<summary>Example of converted file hierarchy</summary>
 
 ```
 docs/
 ├── presentation.pptx
-├── presentation.pdf        # presentation.pptxから生成
-├── presentation_png/       # presentation.pptxから生成
+├── presentation.pdf        # Generated from presentation.pptx
+├── presentation_png/       # Generated from presentation.pptx
 │   ├── slide-1.png
 │   ├── slide-2.png
 │   └── slide-3.png
-├── presentation_jsonl/     # presentation.pptxから生成
+├── presentation_jsonl/     # Generated from presentation.pptx
 │   ├── slide-1.jsonl
 │   ├── slide-2.jsonl
 │   └── slide-3.jsonl
 │
 ├── data.xlsx
-├── data_csv/               # data.xlsxから生成
-│   ├── sheet-Sheet1.csv    # シート名を使用
-│   └── sheet-Summary.csv   # シート名を使用
-├── data_jsonl/             # data.xlsxから生成
-│   ├── sheet-Sheet1.jsonl  # シート名を使用
-│   └── sheet-Summary.jsonl # シート名を使用
+├── data_csv/               # Generated from data.xlsx
+│   ├── sheet-Sheet1.csv    # Using sheet name
+│   └── sheet-Summary.csv   # Using sheet name
+├── data_jsonl/             # Generated from data.xlsx
+│   ├── sheet-Sheet1.jsonl  # Using sheet name
+│   └── sheet-Summary.jsonl # Using sheet name
 │
 ├── project1/
 │   ├── report.pptx
-│   ├── report.pdf          # report.pptxから生成
-│   ├── report_png/         # report.pptxから生成
+│   ├── report.pdf          # Generated from report.pptx
+│   ├── report_png/         # Generated from report.pptx
 │   │   ├── slide-1.png
 │   │   └── slide-2.png
-│   ├── report_jsonl/       # report.pptxから生成
+│   ├── report_jsonl/       # Generated from report.pptx
 │   │   ├── slide-1.jsonl
 │   │   └── slide-2.jsonl
 │   │
 │   ├── analysis.xlsx
-│   ├── analysis_csv/       # analysis.xlsxから生成
-│   │   └── sheet-Data.csv  # シート名を使用
-│   └── analysis_jsonl/     # analysis.xlsxから生成
-│       └── sheet-Data.jsonl # シート名を使用
+│   ├── analysis_csv/       # Generated from analysis.xlsx
+│   │   └── sheet-Data.csv  # Using sheet name
+│   └── analysis_jsonl/     # Generated from analysis.xlsx
+│       └── sheet-Data.jsonl # Using sheet name
 │
 └── archive/
     ├── old_document.pdf
-    └── old_document_png/   # old_document.pdfから生成
+    └── old_document_png/   # Generated from old_document.pdf
         ├── page-1.png
         └── page-2.png
 ```
 
 </details>
 
-## サポートされている拡張子と変換形式
-- `pdf`: PNG画像（1ページ毎）
+## Supported file extensions and conversion formats
+- `pdf`: Converted to PNG images (one image per page)
 - `pptx`:
-  - PDF（全体を1ファイル）
-  - PNG画像（1スライド毎）
-  - JSONL（スライド毎の構造化データ）
+  - PDF format (entire document as a single file)
+  - PNG images (one image per slide)
+  - JSONL format (structured data per slide)
 - `xlsx`:
-  - CSV（1シート毎）
-  - JSONL（シート毎の構造化データ）
+  - CSV format (one file per sheet)
+  - JSONL format (structured data per sheet)
 
-## 使い方
+## Usage
 
-1. このリポジトリをclone
+1. Clone this repository
    ```bash
    git clone git@github.com:pHo9UBenaA/docs-convert-in-container.git
    ```
 
-2. 変換したいドキュメント一覧を `docs` ディレクトリにコピー
+2. Copy the documents you wish to convert into the `docs/` directory
    ```bash
    cp -rf <path/to/docs/> docs/
    ```
 
-3. Dockerコンテナをビルド
+3. Build the Docker container
    ```bash
    docker compose build converter 
    ```
-   ※LibreOfficeに依存しているため時間がかかります
+   *NOTE: This process may take some time as it relies on LibreOffice.*
 
-4. 変換スクリプトを実行
+4. Run the conversion script
    ```bash
    docker compose run --rm converter bash generate-batch-and-run.sh docs/
    ```
-   ※変換に失敗したファイルは `logs/batch-failed_<yyyyMMdd>.log` に書き込まれます
+   *Files that fail to convert will be logged in `logs/batch-failed_<yyyyMMdd>.log`.*
 
 ## Development
 
-### Test
+### Testing
 
 ```bash
 bash tests/integration_test.sh
 ```
 
-### Lint / Format
+### Linting & Formatting
+
+(TODO)
 
 ```bash
-# Lint
-docker compose run --rm linter bash -c "dotnet tool restore && for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Formatting \$dir...\"; cd /scripts/\$dir && dotnet format; cd /scripts; done"
+docker compose run --rm linter bash -lc '
+set -euo pipefail
+DIRS=("pptx-xml-to-jsonl" "xlsx-xml-to-jsonl" "shared-xml-to-jsonl")
 
-# Format
-docker compose run --rm linter bash -c "for dir in pptx-xml-to-jsonl xlsx-xml-to-jsonl shared-xml-to-jsonl; do echo \"Building \$dir...\"; cd /scripts/\$dir && dotnet build; cd /scripts; done"
+# Linting
+for dir in "${DIRS[@]}"; do
+  echo "Building $dir..."
+  (cd /scripts/"$dir" && dotnet build)
+done
+
+# Formatting
+(cd /scripts && dotnet tool restore)
+for dir in "${DIRS[@]}"; do
+  echo "Formatting $dir..."
+  (cd /scripts/"$dir" && dotnet format)
+done
+'
 ```
-
-## TODO
-
-<details>
-
-- ワークフローを整える
-- `xls`等の拡張子をサポート
-- Pythonスクリプトに移行
-
-</details>

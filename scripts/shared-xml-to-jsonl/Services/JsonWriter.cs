@@ -11,7 +11,7 @@ using SharedXmlToJsonl.Models;
 
 namespace SharedXmlToJsonl.Services;
 
-public class JsonWriter : IJsonWriter
+public partial class JsonWriter : IJsonWriter
 {
     private readonly ILogger<JsonWriter> _logger;
     private static readonly JsonSerializerOptions JsonSerializerOptions = new()
@@ -25,7 +25,8 @@ public class JsonWriter : IJsonWriter
 
     public JsonWriter(ILogger<JsonWriter> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task WriteJsonLineAsync<T>(
@@ -33,11 +34,9 @@ public class JsonWriter : IJsonWriter
         T obj,
         CancellationToken cancellationToken = default)
     {
-        if (writer == null)
-            throw new ArgumentNullException(nameof(writer));
+        ArgumentNullException.ThrowIfNull(writer);
 
-        if (obj == null)
-            throw new ArgumentNullException(nameof(obj));
+        ArgumentNullException.ThrowIfNull(obj);
 
         try
         {
@@ -58,7 +57,7 @@ public class JsonWriter : IJsonWriter
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error serializing object to JSON");
+            LogErrorSerializingObjectToJson(_logger, ex);
             throw;
         }
     }
@@ -71,10 +70,9 @@ public class JsonWriter : IJsonWriter
         if (string.IsNullOrEmpty(filePath))
             throw new ArgumentNullException(nameof(filePath));
 
-        if (objects == null)
-            throw new ArgumentNullException(nameof(objects));
+        ArgumentNullException.ThrowIfNull(objects);
 
-        _logger.LogDebug("Writing JSON lines to {FilePath}", filePath);
+        LogWritingJsonLinesToFile(_logger, filePath);
 
         try
         {
@@ -103,18 +101,53 @@ public class JsonWriter : IJsonWriter
                 count++;
             }
 
-            await writer.FlushAsync().ConfigureAwait(false);
-            _logger.LogInformation("Successfully wrote {Count} JSON lines to {FilePath}", count, filePath);
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            LogSuccessfullyWroteJsonLines(_logger, count, filePath);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("JSON writing was cancelled for {FilePath}", filePath);
+            LogJsonWritingCancelled(_logger, filePath);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error writing JSON lines to {FilePath}", filePath);
+            LogErrorWritingJsonLinesToFile(_logger, ex, filePath);
             throw;
         }
     }
+
+    [LoggerMessage(
+        EventId = 8001,
+        Level = LogLevel.Error,
+        Message = "Error serializing object to JSON")]
+    private static partial void LogErrorSerializingObjectToJson(
+        ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        EventId = 8002,
+        Level = LogLevel.Debug,
+        Message = "Writing JSON lines to {filePath}")]
+    private static partial void LogWritingJsonLinesToFile(
+        ILogger logger, string filePath);
+
+    [LoggerMessage(
+        EventId = 8003,
+        Level = LogLevel.Information,
+        Message = "Successfully wrote {count} JSON lines to {filePath}")]
+    private static partial void LogSuccessfullyWroteJsonLines(
+        ILogger logger, int count, string filePath);
+
+    [LoggerMessage(
+        EventId = 8004,
+        Level = LogLevel.Warning,
+        Message = "JSON writing was cancelled for {filePath}")]
+    private static partial void LogJsonWritingCancelled(
+        ILogger logger, string filePath);
+
+    [LoggerMessage(
+        EventId = 8005,
+        Level = LogLevel.Error,
+        Message = "Error writing JSON lines to {filePath}")]
+    private static partial void LogErrorWritingJsonLinesToFile(
+        ILogger logger, Exception ex, string filePath);
 }

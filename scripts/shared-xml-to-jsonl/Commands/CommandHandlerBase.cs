@@ -9,11 +9,11 @@ namespace SharedXmlToJsonl.Commands
     /// Base class for command handlers implementing the Template Method pattern.
     /// </summary>
     /// <typeparam name="TOptions">The type of options for this command handler.</typeparam>
-    public abstract class CommandHandlerBase<TOptions> : ICommandHandler<TOptions>
+    public abstract partial class CommandHandlerBase<TOptions> : ICommandHandler<TOptions>
         where TOptions : CommandHandlerOptions
     {
-        protected readonly ILogger<CommandHandlerBase<TOptions>> _logger;
-        protected readonly IServiceProvider _serviceProvider;
+        protected ILogger<CommandHandlerBase<TOptions>> Logger { get; }
+        protected IServiceProvider ServiceProvider { get; }
 
         /// <summary>
         /// Initializes a new instance of the CommandHandlerBase class.
@@ -24,8 +24,10 @@ namespace SharedXmlToJsonl.Commands
             ILogger<CommandHandlerBase<TOptions>> logger,
             IServiceProvider serviceProvider)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentNullException.ThrowIfNull(logger);
+            Logger = logger;
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ServiceProvider = serviceProvider;
         }
 
         /// <summary>
@@ -41,7 +43,7 @@ namespace SharedXmlToJsonl.Commands
                 {
                     foreach (var error in validationResult.Errors)
                     {
-                        _logger.LogError("Validation failed: {Error}", error);
+                        LogValidationFailed(Logger, error);
                     }
                     return CommonBase.ExitUsageError;
                 }
@@ -59,12 +61,12 @@ namespace SharedXmlToJsonl.Commands
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning("Operation was cancelled");
+                LogOperationCancelled(Logger);
                 return CommonBase.ExitProcessingError;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Command execution failed");
+                LogCommandExecutionFailed(Logger, ex);
                 return CommonBase.ExitProcessingError;
             }
         }
@@ -93,5 +95,26 @@ namespace SharedXmlToJsonl.Commands
         /// Sets up the command handler with the service provider.
         /// </summary>
         public abstract void SetupCommand(IServiceProvider serviceProvider);
+
+        [LoggerMessage(
+            EventId = 3001,
+            Level = LogLevel.Error,
+            Message = "Validation failed: {error}")]
+        private static partial void LogValidationFailed(
+            ILogger logger, string error);
+
+        [LoggerMessage(
+            EventId = 3002,
+            Level = LogLevel.Warning,
+            Message = "Operation was cancelled")]
+        private static partial void LogOperationCancelled(
+            ILogger logger);
+
+        [LoggerMessage(
+            EventId = 3003,
+            Level = LogLevel.Error,
+            Message = "Command execution failed")]
+        private static partial void LogCommandExecutionFailed(
+            ILogger logger, Exception ex);
     }
 }
