@@ -1,3 +1,4 @@
+using System;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,27 +11,23 @@ namespace SharedXmlToJsonl;
 /// </summary>
 public static class JsonSerializationContext
 {
-    private static ElementJsonSerializerContext? _context;
+    /// <summary>
+    /// Thread-safe lazy initialization of the JSON serializer context
+    /// </summary>
+    private static readonly Lazy<ElementJsonSerializerContext> LazyContext = new(() =>
+    {
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            WriteIndented = false,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        return new ElementJsonSerializerContext(options);
+    });
 
     /// <summary>
     /// Gets the default JSON serializer context with Japanese text support
     /// </summary>
-    public static ElementJsonSerializerContext Default
-    {
-        get
-        {
-            if (_context == null)
-            {
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                    WriteIndented = false,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                };
-                _context = new ElementJsonSerializerContext(options);
-            }
-            return _context;
-        }
-    }
+    public static ElementJsonSerializerContext Default => LazyContext.Value;
 }
