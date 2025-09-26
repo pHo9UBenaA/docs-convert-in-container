@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -115,14 +114,9 @@ public partial class XlsxProcessor : IXlsxProcessor
             useAsync: true);
         await using var writer = new StreamWriter(fileStream);
 
-        var options = new JsonSerializerOptions(ElementJsonSerializerContext.Default.SheetElement.Options)
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        };
-
         foreach (var element in sheetElements)
         {
-            var json = JsonSerializer.Serialize(element, options);
+            var json = JsonSerializer.Serialize(element, typeof(SheetElement), JsonSerializationContext.Default);
             await writer.WriteLineAsync(json);
         }
     }
