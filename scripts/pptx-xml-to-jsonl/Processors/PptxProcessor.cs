@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Packaging;
 using System.Linq;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -111,14 +110,9 @@ public partial class PptxProcessor : IPptxProcessor
             useAsync: true);
         await using var writer = new StreamWriter(fileStream);
 
-        var options = new JsonSerializerOptions(ElementJsonSerializerContext.Default.SlideElement.Options)
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        };
-
         foreach (var element in slideElements)
         {
-            var json = JsonSerializer.Serialize(element, options);
+            var json = JsonSerializer.Serialize(element, typeof(SlideElement), JsonSerializationContext.Default);
             await writer.WriteLineAsync(json);
         }
     }

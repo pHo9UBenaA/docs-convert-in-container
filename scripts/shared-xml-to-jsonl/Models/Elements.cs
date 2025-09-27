@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SharedXmlToJsonl;
 
@@ -322,7 +324,8 @@ public class CellFormat
 [JsonSerializable(typeof(Dictionary<string, int>))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-    WriteIndented = false)]
+    WriteIndented = false,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 public partial class ElementJsonSerializerContext : JsonSerializerContext
 {
 }
